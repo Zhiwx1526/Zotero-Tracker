@@ -112,7 +112,7 @@ function openSettingsWindow() {
   ztoolkit.log("Opening settings window...");
   try {
     // 直接打开设置窗口
-    const win = window.open(
+    const win = Zotero.getMainWindow().open(
       "chrome://literature-tracker/content/preferences.xhtml",
       "literature-tracker-preferences",
       "chrome,centerscreen,width=800,height=600"
