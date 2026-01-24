@@ -1,14 +1,14 @@
 {
-  "name": "zotero-plugin-template",
+  "name": "literature-tracker",
   "type": "module",
-  "version": "3.1.0",
-  "description": "Zotero Plugin Template",
+  "version": "1.0.0",
+  "description": "基于大模型的Zotero文献追踪与推送系统",
   "config": {
-    "addonName": "Zotero Plugin Template",
-    "addonID": "addontemplate@euclpts.com",
-    "addonRef": "addontemplate",
-    "addonInstance": "AddonTemplate",
-    "prefsPrefix": "extensions.zotero.addontemplate"
+    "addonName": "Literature Tracker",
+    "addonID": "literature-tracker@example.com",
+    "addonRef": "literature-tracker",
+    "addonInstance": "LiteratureTracker",
+    "prefsPrefix": "extensions.zotero.literature-tracker"
   },
   "repository": {
     "type": "git",
@@ -30,7 +30,11 @@
     "update-deps": "npm update --save"
   },
   "dependencies": {
-    "zotero-plugin-toolkit": "^5.1.0-beta.13"
+    "zotero-plugin-toolkit": "^5.1.0-beta.13",
+    "axios": "^1.7.7",
+    "sqlite3": "^5.1.7",
+    "natural": "^6.1.0",
+    "turndown": "^7.1.3"
   },
   "devDependencies": {
     "@types/chai": "^5.2.3",

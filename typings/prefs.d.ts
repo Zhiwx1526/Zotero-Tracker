@@ -7,8 +7,12 @@
 declare namespace _ZoteroTypes {
   interface Prefs {
     PluginPrefsMap: {
-      "enable": boolean;
-      "input": string;
+      "openaiKey": string;
+      "claudeKey": string;
+      "trackArxiv": boolean;
+      "trackPubmed": boolean;
+      "relevanceThreshold": number;
+      "shortcutKey": string;
     };
   }
 }

@@ -1,10 +1,3 @@
-import {
-  BasicExampleFactory,
-  HelperExampleFactory,
-  KeyExampleFactory,
-  PromptExampleFactory,
-  UIExampleFactory,
-} from "./modules/examples";
 import { getString, initLocale } from "./utils/locale";
 import { registerPrefsScripts } from "./modules/preferenceScript";
 import { createZToolkit } from "./utils/ztoolkit";
@@ -18,29 +11,12 @@ async function onStartup() {
 
   initLocale();
 
-  BasicExampleFactory.registerPrefs();
-
-  BasicExampleFactory.registerNotifier();
-
-  KeyExampleFactory.registerShortcuts();
-
-  await UIExampleFactory.registerExtraColumn();
-
-  await UIExampleFactory.registerExtraColumnWithCustomCell();
-
-  UIExampleFactory.registerItemPaneCustomInfoRow();
-
-  UIExampleFactory.registerItemPaneSection();
-
-  UIExampleFactory.registerReaderItemPaneSection();
+  // 初始化插件
+  await addon.initialize();
 
   await Promise.all(
     Zotero.getMainWindows().map((win) => onMainWindowLoad(win)),
   );
-
-  // Mark initialized as true to confirm plugin loading status
-  // outside of the plugin (e.g. scaffold testing process)
-  addon.data.initialized = true;
 }
 
 async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
@@ -62,35 +38,13 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
     })
     .show();
 
-  await Zotero.Promise.delay(1000);
-  popupWin.changeLine({
-    progress: 30,
-    text: `[30%] ${getString("startup-begin")}`,
-  });
-
-  UIExampleFactory.registerStyleSheet(win);
-
-  UIExampleFactory.registerRightClickMenuItem();
-
-  UIExampleFactory.registerRightClickMenuPopup(win);
-
-  UIExampleFactory.registerWindowMenuWithSeparator();
-
-  PromptExampleFactory.registerNormalCommandExample();
-
-  PromptExampleFactory.registerAnonymousCommandExample(win);
-
-  PromptExampleFactory.registerConditionalCommandExample();
-
-  await Zotero.Promise.delay(1000);
+  await Zotero.Promise.delay(500);
 
   popupWin.changeLine({
     progress: 100,
     text: `[100%] ${getString("startup-finish")}`,
   });
-  popupWin.startCloseTimer(5000);
-
-  addon.hooks.onDialogEvents("dialogExample");
+  popupWin.startCloseTimer(2000);
 }
 
 async function onMainWindowUnload(win: Window): Promise<void> {
@@ -98,9 +52,13 @@ async function onMainWindowUnload(win: Window): Promise<void> {
   addon.data.dialog?.window?.close();
 }
 
-function onShutdown(): void {
+async function onShutdown(): Promise<void> {
   ztoolkit.unregisterAll();
   addon.data.dialog?.window?.close();
+
+  // 卸载插件
+  await addon.unload();
+
   // Remove addon object
   addon.data.alive = false;
   // @ts-expect-error - Plugin instance is not typed
@@ -119,15 +77,6 @@ async function onNotify(
 ) {
   // You can add your code to the corresponding notify type
   ztoolkit.log("notify", event, type, ids, extraData);
-  if (
-    event == "select" &&
-    type == "tab" &&
-    extraData[ids[0]].type == "reader"
-  ) {
-    BasicExampleFactory.exampleNotifierCallback();
-  } else {
-    return;
-  }
 }
 
 /**
@@ -146,38 +95,75 @@ async function onPrefsEvent(type: string, data: { [key: string]: any }) {
   }
 }
 
-function onShortcuts(type: string) {
-  switch (type) {
-    case "larger":
-      KeyExampleFactory.exampleShortcutLargerCallback();
-      break;
-    case "smaller":
-      KeyExampleFactory.exampleShortcutSmallerCallback();
-      break;
-    default:
-      break;
+/**
+ * 处理快捷键事件
+ */
+function onShortcutKey() {
+  ztoolkit.log("Shortcut key pressed!");
+  // 这里可以添加快捷键触发的逻辑
+  // 例如：手动触发文献追踪和推送
+  addon.hooks.triggerLiteratureTracking();
+}
+
+/**
+ * 打开设置窗口
+ */
+function openSettingsWindow() {
+  ztoolkit.log("Opening settings window...");
+  try {
+    // 直接打开设置窗口
+    const win = window.open(
+      "chrome://literature-tracker/content/preferences.xhtml",
+      "literature-tracker-preferences",
+      "chrome,centerscreen,width=800,height=600"
+    );
+    if (win) {
+      ztoolkit.log("Settings window opened successfully");
+    } else {
+      ztoolkit.log("Failed to open settings window");
+    }
+  } catch (error) {
+    ztoolkit.log(`Error opening settings window: ${error}`);
   }
 }
 
-function onDialogEvents(type: string) {
-  switch (type) {
-    case "dialogExample":
-      HelperExampleFactory.dialogExample();
-      break;
-    case "clipboardExample":
-      HelperExampleFactory.clipboardExample();
-      break;
-    case "filePickerExample":
-      HelperExampleFactory.filePickerExample();
-      break;
-    case "progressWindowExample":
-      HelperExampleFactory.progressWindowExample();
-      break;
-    case "vtableExample":
-      HelperExampleFactory.vtableExample();
-      break;
-    default:
-      break;
+/**
+ * 触发文献追踪
+ */
+async function triggerLiteratureTracking() {
+  try {
+    const popupWin = new ztoolkit.ProgressWindow(addon.data.config.addonName, {
+      closeOnClick: true,
+      closeTime: -1,
+    })
+      .createLine({
+        text: "开始追踪文献...",
+        type: "default",
+        progress: 0,
+      })
+      .show();
+
+    // 这里可以添加实际的文献追踪逻辑
+    await Zotero.Promise.delay(1000);
+
+    popupWin.changeLine({
+      progress: 100,
+      text: "文献追踪完成！",
+    });
+    popupWin.startCloseTimer(2000);
+  } catch (error) {
+    ztoolkit.log(`Error triggering literature tracking: ${error}`);
+    new ztoolkit.ProgressWindow(addon.data.config.addonName, {
+      closeOnClick: true,
+      closeTime: -1,
+    })
+      .createLine({
+        text: `追踪失败: ${error}`,
+        type: "error",
+        progress: 100,
+      })
+      .show()
+      .startCloseTimer(3000);
   }
 }
 
@@ -192,6 +178,7 @@ export default {
   onMainWindowUnload,
   onNotify,
   onPrefsEvent,
-  onShortcuts,
-  onDialogEvents,
+  onShortcutKey,
+  openSettingsWindow,
+  triggerLiteratureTracking,
 };
