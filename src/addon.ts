@@ -4,6 +4,7 @@ import hooks from "./hooks";
 import { createZToolkit } from "./utils/ztoolkit";
 import { LiteratureReader } from "./modules/literatureReader";
 import { VectorStore } from "./modules/vectorStore";
+import { LiteratureTrackingService } from "./modules/literatureTrackingService";
 
 class Addon {
   public data: {
@@ -22,6 +23,7 @@ class Addon {
     dialog?: DialogHelper;
     literatureReader?: LiteratureReader;
     vectorStore?: VectorStore;
+    literatureTrackingService?: LiteratureTrackingService;
     shortcutKey?: string;
   };
   // Lifecycle hooks
@@ -56,6 +58,9 @@ class Addon {
       const dbPath = (zotero as any).ProfD + "/literature-tracker.sqlite";
       this.data.vectorStore = new VectorStore(dbPath);
       await this.data.vectorStore.initialize();
+
+      // 初始化文献追踪服务
+      this.data.literatureTrackingService = new LiteratureTrackingService(zotero as any);
 
       // 加载快捷键设置
       this.loadShortcutKey();

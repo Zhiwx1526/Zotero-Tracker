@@ -137,20 +137,46 @@ async function triggerLiteratureTracking() {
       closeTime: -1,
     })
       .createLine({
-        text: "开始追踪文献...",
+        text: "开始追踪arXiv文献...",
         type: "default",
         progress: 0,
       })
       .show();
 
-    // 这里可以添加实际的文献追踪逻辑
-    await Zotero.Promise.delay(1000);
+    // 使用文献追踪服务获取文献
+    if (addon.data.literatureTrackingService) {
+      await Zotero.Promise.delay(500);
+      
+      popupWin.changeLine({
+        progress: 30,
+        text: "正在从arXiv获取最新文献...",
+      });
 
-    popupWin.changeLine({
-      progress: 100,
-      text: "文献追踪完成！",
-    });
-    popupWin.startCloseTimer(2000);
+      const papers = await addon.data.literatureTrackingService.fetchRecentPapers(7);
+      
+      await Zotero.Promise.delay(500);
+      
+      popupWin.changeLine({
+        progress: 70,
+        text: `找到 ${papers.length} 篇新文献`,
+      });
+
+      await Zotero.Promise.delay(500);
+
+      popupWin.changeLine({
+        progress: 100,
+        text: `文献追踪完成！共获取 ${papers.length} 篇文献`,
+      });
+      
+      ztoolkit.log(`Fetched ${papers.length} papers from arXiv`);
+      
+      // 可以在这里添加将文献保存到Zotero的逻辑
+      // 或者显示文献列表供用户选择
+    } else {
+      throw new Error("Literature tracking service not initialized");
+    }
+
+    popupWin.startCloseTimer(3000);
   } catch (error) {
     ztoolkit.log(`Error triggering literature tracking: ${error}`);
     new ztoolkit.ProgressWindow(addon.data.config.addonName, {

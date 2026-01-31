@@ -60,90 +60,43 @@ async function startup({ id, version, resourceURI, rootURI }, reason) {
 
   if (typeof Zotero !== 'undefined') {
     log(`Zotero version: ${Zotero.version}`);
-    log(`Zotero.PreferencePanes available: ${typeof Zotero.PreferencePanes !== 'undefined'}`);
 
-    if (typeof Zotero.PreferencePanes !== 'undefined') {
-      log(`Zotero.PreferencePanes methods: ${Object.keys(Zotero.PreferencePanes)}`);
-
-      // 注册首选项面板（使用更明确的方式）
-      try {
-        log("Registering preference pane...");
-
-        // 准备面板信息
-        const paneInfo = {
-          pluginID: id,
-          src: "chrome://literature-tracker/content/preferences.xhtml",
-          label: "Literature Tracker",
-          icon: "chrome://literature-tracker/content/icons/favicon.png"
-        };
-
-        log(`Registering with info: ${JSON.stringify(paneInfo)}`);
-
-        // 尝试注册
-        Zotero.PreferencePanes.register(paneInfo);
-        log("Preference pane registered successfully");
-
-        // 检查pluginPanes
-        if (Zotero.PreferencePanes.pluginPanes) {
-          log(`Plugin panes count after register: ${Object.keys(Zotero.PreferencePanes.pluginPanes).length}`);
-          log(`Plugin panes after register: ${JSON.stringify(Object.keys(Zotero.PreferencePanes.pluginPanes))}`);
-        }
-
-        // 尝试手动添加到pluginPanes
-        if (Zotero.PreferencePanes.pluginPanes && Object.keys(Zotero.PreferencePanes.pluginPanes).length === 0) {
-          log("Attempting to manually add pane to pluginPanes...");
-          try {
-            // 使用插件ID作为键
-            Zotero.PreferencePanes.pluginPanes[id] = paneInfo;
-            log(`Manually added pane to pluginPanes`);
-            log(`Plugin panes count after manual add: ${Object.keys(Zotero.PreferencePanes.pluginPanes).length}`);
-          } catch (e) {
-            log(`Error adding manually: ${e.message}`);
-          }
-        }
-
-        // 刷新首选项
-        if (Zotero.PreferencePanes._refreshPreferences) {
-          log("Refreshing preferences...");
-          Zotero.PreferencePanes._refreshPreferences();
-          log("Preferences refreshed");
-        }
-
-        // 尝试创建一个直接访问设置的菜单项
-        log("Adding menu item for settings...");
+    // 创建菜单项作为访问方式
+    log("Creating menu item for settings...");
+    try {
+      // 等待Zotero完全加载后再添加菜单
+      setTimeout(() => {
         try {
-          if (typeof Zotero.MenuItems !== 'undefined') {
-            Zotero.MenuItems.register({
-              id: 'literature-tracker-settings',
-              label: 'Literature Tracker Settings',
-              tooltiptext: 'Open Literature Tracker settings',
-              onClick: function () {
-                // 直接打开设置窗口
+          const doc = Zotero.getMainWindow().document;
+          if (doc) {
+            const toolsMenu = doc.getElementById('menu_Tools');
+            if (toolsMenu) {
+              const menuSeparator = doc.createElement('menuseparator');
+              menuSeparator.id = 'literature-tracker-separator';
+              toolsMenu.appendChild(menuSeparator);
+
+              const menuItem = doc.createElement('menuitem');
+              menuItem.id = 'literature-tracker-settings';
+              menuItem.setAttribute('label', 'Literature Tracker 设置');
+              menuItem.setAttribute('oncommand', `
                 window.open(
                   'chrome://literature-tracker/content/preferences.xhtml',
                   'literature-tracker-preferences',
                   'chrome,centerscreen,width=800,height=600'
                 );
-              },
-              parent: 'menu_Tools',
-              insertAfter: 'menu_tools_addons'
-            });
-            log("Menu item added successfully");
-          } else {
-            log("Zotero.MenuItems not available");
+              `);
+              toolsMenu.appendChild(menuItem);
+              log("Menu item added successfully");
+            } else {
+              log("Tools menu not found");
+            }
           }
         } catch (e) {
           log(`Error adding menu item: ${e.message}`);
         }
-
-      } catch (e) {
-        log(`Error registering preference pane: ${e.message}`);
-        if (e.stack) {
-          log(`Error stack: ${e.stack}`);
-        }
-      }
-    } else {
-      log("Zotero.PreferencePanes not available");
+      }, 2000);
+    } catch (e) {
+      log(`Error in menu creation: ${e.message}`);
     }
 
     // 注册数字"0"键快捷键，用于打开设置窗口

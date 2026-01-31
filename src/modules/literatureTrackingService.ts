@@ -1,0 +1,182 @@
+import { ArxivCrawler, ArxivPaper } from './arxivCrawler';
+
+export interface TrackingConfig {
+  categories: string[];
+  keywords: string[];
+  authors: string[];
+  maxResults: number;
+  relevanceThreshold: number;
+}
+
+export class LiteratureTrackingService {
+  private arxivCrawler: ArxivCrawler;
+  private trackingConfig: TrackingConfig;
+
+  constructor(private zotero: typeof Zotero) {
+    this.arxivCrawler = new ArxivCrawler(zotero);
+    this.trackingConfig = this.loadTrackingConfig();
+  }
+
+  private loadTrackingConfig(): TrackingConfig {
+    try {
+      const prefs = this.zotero.Prefs;
+      const categoriesVal = prefs.get('extensions.literature-tracker.categories', true) as unknown;
+      const keywordsVal = prefs.get('extensions.literature-tracker.keywords', true) as unknown;
+      const authorsVal = prefs.get('extensions.literature-tracker.authors', true) as unknown;
+      const maxResultsVal = prefs.get('extensions.literature-tracker.maxResults', true) as unknown;
+      const relevanceThresholdVal = prefs.get('extensions.literature-tracker.relevanceThreshold', true) as unknown;
+
+      const categories = (Array.isArray(categoriesVal) ? categoriesVal : ['cs.AI', 'cs.LG']) as string[];
+      const keywords = (Array.isArray(keywordsVal) ? keywordsVal : []) as string[];
+      const authors = (Array.isArray(authorsVal) ? authorsVal : []) as string[];
+      const maxResults = (typeof maxResultsVal === 'number' ? maxResultsVal : 50) as number;
+      const relevanceThreshold = (typeof relevanceThresholdVal === 'number' ? relevanceThresholdVal : 0.7) as number;
+
+      return {
+        categories,
+        keywords,
+        authors,
+        maxResults,
+        relevanceThreshold
+      };
+    } catch (error) {
+      this.zotero.debug(`Error loading tracking config: ${error}`);
+      return {
+        categories: ['cs.AI', 'cs.LG'],
+        keywords: [],
+        authors: [],
+        maxResults: 50,
+        relevanceThreshold: 0.7
+      };
+    }
+  }
+
+  private saveTrackingConfig(config: TrackingConfig): void {
+    try {
+      const prefs = this.zotero.Prefs;
+      prefs.set('extensions.literature-tracker.categories', config.categories as any, true);
+      prefs.set('extensions.literature-tracker.keywords', config.keywords as any, true);
+      prefs.set('extensions.literature-tracker.authors', config.authors as any, true);
+      prefs.set('extensions.literature-tracker.maxResults', config.maxResults, true);
+      prefs.set('extensions.literature-tracker.relevanceThreshold', config.relevanceThreshold, true);
+    } catch (error) {
+      this.zotero.debug(`Error saving tracking config: ${error}`);
+    }
+  }
+
+  async fetchRecentPapers(days: number = 7): Promise<ArxivPaper[]> {
+    const allPapers: ArxivPaper[] = [];
+
+    for (const category of this.trackingConfig.categories) {
+      try {
+        this.zotero.debug(`Fetching papers from category: ${category}`);
+        const papers = await this.arxivCrawler.getRecentPapers(category, days);
+        allPapers.push(...papers);
+      } catch (error) {
+        this.zotero.debug(`Error fetching papers from ${category}: ${error}`);
+      }
+    }
+
+    for (const keyword of this.trackingConfig.keywords) {
+      try {
+        this.zotero.debug(`Searching papers by keyword: ${keyword}`);
+        const papers = await this.arxivCrawler.searchByKeyword(keyword, {
+          maxResults: this.trackingConfig.maxResults,
+          sortBy: 'lastUpdatedDate',
+          sortOrder: 'descending'
+        });
+        allPapers.push(...papers);
+      } catch (error) {
+        this.zotero.debug(`Error searching papers by keyword ${keyword}: ${error}`);
+      }
+    }
+
+    for (const author of this.trackingConfig.authors) {
+      try {
+        this.zotero.debug(`Searching papers by author: ${author}`);
+        const papers = await this.arxivCrawler.searchByAuthor(author, {
+          maxResults: this.trackingConfig.maxResults,
+          sortBy: 'lastUpdatedDate',
+          sortOrder: 'descending'
+        });
+        allPapers.push(...papers);
+      } catch (error) {
+        this.zotero.debug(`Error searching papers by author ${author}: ${error}`);
+      }
+    }
+
+    return this.deduplicatePapers(allPapers);
+  }
+
+  private deduplicatePapers(papers: ArxivPaper[]): ArxivPaper[] {
+    const seen = new Set<string>();
+    const uniquePapers: ArxivPaper[] = [];
+
+    for (const paper of papers) {
+      if (!seen.has(paper.id)) {
+        seen.add(paper.id);
+        uniquePapers.push(paper);
+      }
+    }
+
+    return uniquePapers;
+  }
+
+  async searchPapers(query: string, maxResults: number = 20): Promise<ArxivPaper[]> {
+    return this.arxivCrawler.searchPapers({
+      query,
+      maxResults,
+      sortBy: 'relevance',
+      sortOrder: 'descending'
+    });
+  }
+
+  getPaperById(arxivId: string): Promise<ArxivPaper | null> {
+    return this.arxivCrawler.getPaperById(arxivId);
+  }
+
+  updateConfig(config: Partial<TrackingConfig>): void {
+    this.trackingConfig = { ...this.trackingConfig, ...config };
+    this.saveTrackingConfig(this.trackingConfig);
+  }
+
+  getConfig(): TrackingConfig {
+    return { ...this.trackingConfig };
+  }
+
+  async addCategory(category: string): Promise<void> {
+    if (!this.trackingConfig.categories.includes(category)) {
+      this.trackingConfig.categories.push(category);
+      this.saveTrackingConfig(this.trackingConfig);
+    }
+  }
+
+  async removeCategory(category: string): Promise<void> {
+    this.trackingConfig.categories = this.trackingConfig.categories.filter(c => c !== category);
+    this.saveTrackingConfig(this.trackingConfig);
+  }
+
+  async addKeyword(keyword: string): Promise<void> {
+    if (!this.trackingConfig.keywords.includes(keyword)) {
+      this.trackingConfig.keywords.push(keyword);
+      this.saveTrackingConfig(this.trackingConfig);
+    }
+  }
+
+  async removeKeyword(keyword: string): Promise<void> {
+    this.trackingConfig.keywords = this.trackingConfig.keywords.filter(k => k !== keyword);
+    this.saveTrackingConfig(this.trackingConfig);
+  }
+
+  async addAuthor(author: string): Promise<void> {
+    if (!this.trackingConfig.authors.includes(author)) {
+      this.trackingConfig.authors.push(author);
+      this.saveTrackingConfig(this.trackingConfig);
+    }
+  }
+
+  async removeAuthor(author: string): Promise<void> {
+    this.trackingConfig.authors = this.trackingConfig.authors.filter(a => a !== author);
+    this.saveTrackingConfig(this.trackingConfig);
+  }
+}

@@ -1,64 +1,179 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:html="http://www.w3.org/1999/xhtml">
-<linkset>
-  <html:link rel="localization" href="__addonRef__-preferences.ftl" />
-</linkset>
-<groupbox onload="Zotero.__addonInstance__.hooks.onPrefsEvent('load', { window })">
-  <label>
-    <html:h2 data-l10n-id="pref-title"></html:h2>
-  </label>
 
-  <!-- API Key Settings -->
-  <label>
-    <html:h3 data-l10n-id="pref-api-section"></html:h3>
-  </label>
+<head>
+  <title>Literature Tracker Preferences</title>
+  <link rel="stylesheet" href="chrome://global/skin/" />
+  <link rel="stylesheet" href="chrome://zotero/skin/zotero.css" />
+  <link rel="stylesheet" href="chrome://literature-tracker/content/zoteroPane.css" />
+</head>
 
-  <hbox>
-    <html:label for="zotero-prefpane-__addonRef__-openai-key" data-l10n-id="pref-openai-key"></html:label>
-    <html:input type="password" id="zotero-prefpane-__addonRef__-openai-key" preference="openaiKey"></html:input>
-  </hbox>
+<body>
+  <vbox id="literature-tracker-prefs" style="padding: 10px;">
+    <html:h2>文献追踪与推送</html:h2>
 
-  <hbox>
-    <html:label for="zotero-prefpane-__addonRef__-claude-key" data-l10n-id="pref-claude-key"></html:label>
-    <html:input type="password" id="zotero-prefpane-__addonRef__-claude-key" preference="claudeKey"></html:input>
-  </hbox>
+    <!-- API Key Settings -->
+    <html:h3>API设置</html:h3>
 
-  <!-- Website Selection -->
-  <label>
-    <html:h3 data-l10n-id="pref-website-section"></html:h3>
-  </label>
+    <hbox align="center">
+      <html:label style="width: 150px;">OpenAI API密钥:</html:label>
+      <html:input type="password" id="openai-key" style="width: 300px;" />
+    </hbox>
 
-  <checkbox id="zotero-prefpane-__addonRef__-arxiv" preference="trackArxiv" data-l10n-id="pref-track-arxiv" />
+    <hbox align="center">
+      <html:label style="width: 150px;">Claude API密钥:</html:label>
+      <html:input type="password" id="claude-key" style="width: 300px;" />
+    </hbox>
 
-  <checkbox id="zotero-prefpane-__addonRef__-pubmed" preference="trackPubmed" data-l10n-id="pref-track-pubmed" />
+    <separator />
 
-  <!-- Relevance Threshold -->
-  <label>
-    <html:h3 data-l10n-id="pref-threshold-section"></html:h3>
-  </label>
+    <!-- Website Selection -->
+    <html:h3>追踪网站</html:h3>
 
-  <hbox>
-    <html:label for="zotero-prefpane-__addonRef__-threshold" data-l10n-id="pref-threshold"></html:label>
-    <html:input type="range" id="zotero-prefpane-__addonRef__-threshold" preference="relevanceThreshold" min="0" max="1"
-      step="0.05"></html:input>
-    <html:span id="zotero-prefpane-__addonRef__-threshold-value">0.7</html:span>
-  </hbox>
+    <hbox align="center">
+      <checkbox id="track-arxiv" label="追踪arXiv" />
+    </hbox>
 
-  <!-- Keyboard Shortcut -->
-  <label>
-    <html:h3 data-l10n-id="pref-shortcut-section"></html:h3>
-  </label>
+    <hbox align="center">
+      <checkbox id="track-pubmed" label="追踪PubMed" />
+    </hbox>
 
-  <hbox>
-    <html:label for="zotero-prefpane-__addonRef__-shortcut" data-l10n-id="pref-shortcut"></html:label>
-    <html:input type="text" id="zotero-prefpane-__addonRef__-shortcut" preference="shortcutKey" placeholder="Space">
-    </html:input>
-  </hbox>
-</groupbox>
-<vbox>
-  <html:label data-l10n-id="pref-help"
-    data-l10n-args='{"time": "__buildTime__","name": "__addonName__","version":"__buildVersion__"}'></html:label>
-</vbox>
+    <separator />
+
+    <!-- arXiv Settings -->
+    <html:h3>arXiv追踪设置</html:h3>
+
+    <hbox align="center">
+      <html:label style="width: 150px;">arXiv分类:</html:label>
+      <html:input type="text" id="arxiv-categories" placeholder="cs.AI, cs.LG" style="width: 300px;" />
+      <html:label style="margin-left: 10px; font-size: 12px; color: gray;">(用逗号分隔)</html:label>
+    </hbox>
+
+    <hbox align="center">
+      <html:label style="width: 150px;">关键词:</html:label>
+      <html:input type="text" id="arxiv-keywords" placeholder="machine learning, deep learning" style="width: 300px;" />
+      <html:label style="margin-left: 10px; font-size: 12px; color: gray;">(用逗号分隔)</html:label>
+    </hbox>
+
+    <hbox align="center">
+      <html:label style="width: 150px;">作者:</html:label>
+      <html:input type="text" id="arxiv-authors" placeholder="Author Name" style="width: 300px;" />
+      <html:label style="margin-left: 10px; font-size: 12px; color: gray;">(用逗号分隔)</html:label>
+    </hbox>
+
+    <hbox align="center">
+      <html:label style="width: 150px;">最大结果数:</html:label>
+      <html:input type="number" id="arxiv-max-results" min="10" max="200" value="50" style="width: 100px;" />
+    </hbox>
+
+    <separator />
+
+    <!-- Relevance Threshold -->
+    <html:h3>相关度设置</html:h3>
+
+    <hbox align="center">
+      <html:label style="width: 150px;">相关度阈值:</html:label>
+      <html:input type="range" id="relevance-threshold" min="0" max="1" step="0.05" value="0.7" style="width: 200px;" />
+      <html:span id="threshold-value" style="margin-left: 10px;">0.7</html:span>
+    </hbox>
+
+    <separator />
+
+    <!-- Keyboard Shortcut -->
+    <html:h3>快捷键设置</html:h3>
+
+    <hbox align="center">
+      <html:label style="width: 150px;">激活键:</html:label>
+      <html:input type="text" id="shortcut-key" value="0" style="width: 100px;" />
+    </hbox>
+
+    <separator />
+
+    <!-- Save Button -->
+    <hbox pack="end">
+      <html:button id="save-prefs" style="padding: 5px 20px;">保存设置</html:button>
+    </hbox>
+  </vbox>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const openaiKeyInput = document.getElementById('openai-key');
+      const claudeKeyInput = document.getElementById('claude-key');
+      const trackArxivCheckbox = document.getElementById('track-arxiv');
+      const trackPubmedCheckbox = document.getElementById('track-pubmed');
+      const arxivCategoriesInput = document.getElementById('arxiv-categories');
+      const arxivKeywordsInput = document.getElementById('arxiv-keywords');
+      const arxivAuthorsInput = document.getElementById('arxiv-authors');
+      const arxivMaxResultsInput = document.getElementById('arxiv-max-results');
+      const relevanceThresholdInput = document.getElementById('relevance-threshold');
+      const thresholdValueSpan = document.getElementById('threshold-value');
+      const shortcutKeyInput = document.getElementById('shortcut-key');
+      const saveButton = document.getElementById('save-prefs');
+
+      // Load saved preferences
+      try {
+        const prefs = Zotero.Prefs;
+        openaiKeyInput.value = prefs.get('extensions.literature-tracker.openaiKey', true) || '';
+        claudeKeyInput.value = prefs.get('extensions.literature-tracker.claudeKey', true) || '';
+        trackArxivCheckbox.checked = prefs.get('extensions.literature-tracker.trackArxiv', true) || false;
+        trackPubmedCheckbox.checked = prefs.get('extensions.literature-tracker.trackPubmed', true) || false;
+
+        const categories = prefs.get('extensions.literature-tracker.categories', true) || ['cs.AI', 'cs.LG'];
+        arxivCategoriesInput.value = Array.isArray(categories) ? categories.join(', ') : categories;
+
+        const keywords = prefs.get('extensions.literature-tracker.keywords', true) || [];
+        arxivKeywordsInput.value = Array.isArray(keywords) ? keywords.join(', ') : keywords;
+
+        const authors = prefs.get('extensions.literature-tracker.authors', true) || [];
+        arxivAuthorsInput.value = Array.isArray(authors) ? authors.join(', ') : authors;
+
+        arxivMaxResultsInput.value = prefs.get('extensions.literature-tracker.maxResults', true) || 50;
+
+        const threshold = prefs.get('extensions.literature-tracker.relevanceThreshold', true) || 0.7;
+        relevanceThresholdInput.value = threshold;
+        thresholdValueSpan.textContent = threshold;
+        shortcutKeyInput.value = prefs.get('extensions.literature-tracker.shortcutKey', true) || '0';
+      } catch (e) {
+        console.error('Error loading preferences:', e);
+      }
+
+      // Update threshold value display
+      relevanceThresholdInput.addEventListener('input', function () {
+        thresholdValueSpan.textContent = this.value;
+      });
+
+      // Save preferences
+      saveButton.addEventListener('click', function () {
+        try {
+          const prefs = Zotero.Prefs;
+          prefs.set('extensions.literature-tracker.openaiKey', openaiKeyInput.value, true);
+          prefs.set('extensions.literature-tracker.claudeKey', claudeKeyInput.value, true);
+          prefs.set('extensions.literature-tracker.trackArxiv', trackArxivCheckbox.checked, true);
+          prefs.set('extensions.literature-tracker.trackPubmed', trackPubmedCheckbox.checked, true);
+
+          const categories = arxivCategoriesInput.value.split(',').map(s => s.trim()).filter(s => s);
+          prefs.set('extensions.literature-tracker.categories', categories, true);
+
+          const keywords = arxivKeywordsInput.value.split(',').map(s => s.trim()).filter(s => s);
+          prefs.set('extensions.literature-tracker.keywords', keywords, true);
+
+          const authors = arxivAuthorsInput.value.split(',').map(s => s.trim()).filter(s => s);
+          prefs.set('extensions.literature-tracker.authors', authors, true);
+
+          prefs.set('extensions.literature-tracker.maxResults', parseInt(arxivMaxResultsInput.value), true);
+          prefs.set('extensions.literature-tracker.relevanceThreshold', parseFloat(relevanceThresholdInput.value), true);
+          prefs.set('extensions.literature-tracker.shortcutKey', shortcutKeyInput.value, true);
+
+          alert('设置已保存！');
+          window.close();
+        } catch (e) {
+          console.error('Error saving preferences:', e);
+          alert('保存设置失败: ' + e.message);
+        }
+      });
+    });
+  </script>
+</body>
 
 </html>
