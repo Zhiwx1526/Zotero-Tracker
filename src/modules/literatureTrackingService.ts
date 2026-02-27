@@ -12,7 +12,7 @@ export class LiteratureTrackingService {
   private arxivCrawler: ArxivCrawler;
   private trackingConfig: TrackingConfig;
 
-  constructor(private zotero: typeof Zotero) {
+  constructor(private zotero: any) {
     this.arxivCrawler = new ArxivCrawler(zotero);
     this.trackingConfig = this.loadTrackingConfig();
   }

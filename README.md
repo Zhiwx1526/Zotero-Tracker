@@ -13,14 +13,16 @@
 5. **文献概述生成**：调用大模型API生成文献概述
 6. **个性化推送**：相关度达到阈值的文献推送给用户
 7. **快捷键支持**：默认空格键触发，可配置
+8. **选中文献向量生成**：支持在Zotero中选择文献并生成向量
+9. **向量存储与管理**：使用SQLite数据库存储和管理文献向量
 
 ## 技术架构
 
-- **前端**：React + Webpack
+- **前端**：XUL + Fluent（Zotero原生UI）
 - **后端**：Zotero Plugin API
 - **存储**：SQLite（向量和配置）
-- **AI模型**：支持OpenAI/Claude/本地模型
-- **向量模型**：sentence-transformers/all-MiniLM-L6-v2
+- **AI模型**：支持OpenAI API和本地伪向量
+- **向量模型**：sentence-transformers/all-MiniLM-L6-v2（计划）
 
 ## 安装方法
 
@@ -46,7 +48,13 @@
 - 按下配置的快捷键（默认为空格键）
 - 或点击插件菜单中的「追踪文献」选项
 
-### 3. 查看推送的文献
+### 3. 生成选中文献的向量
+
+- 在Zotero中选择一个或多个文献
+- 点击「工具」→「Literature Tracker」→「Generate Vectors for Selected Items」
+- 插件会为选中文献生成向量并存储
+
+### 4. 查看推送的文献
 
 - 插件会在发现相关文献时弹出通知
 - 点击通知查看文献详情和概述
@@ -76,12 +84,23 @@
 ### 1. literatureReader.ts
 - 从Zotero读取用户文献库
 - 支持获取所有文献、按集合获取、搜索文献等功能
+- 新增：支持获取选中文献的功能
 
 ### 2. vectorStore.ts
 - 使用SQLite存储文献向量
 - 实现向量相似度计算和查询
 
-### 3. preferenceScript.ts
+### 3. vectorGenerator.ts
+- 实现向量生成功能
+- 支持使用OpenAI API生成向量
+- 支持生成本地伪向量作为备选方案
+
+### 4. literatureTrackingService.ts
+- 实现文献追踪服务
+- 支持从arXiv获取最新文献
+- 管理追踪配置和偏好设置
+
+### 5. preferenceScript.ts
 - 处理设置面板的逻辑
 - 管理用户配置
 
@@ -95,6 +114,10 @@
 | trackPubmed | 是否追踪PubMed | true |
 | relevanceThreshold | 相关度阈值 | 0.7 |
 | shortcutKey | 快捷键 | 空格 |
+| categories | 追踪的arXiv分类 | ['cs.AI', 'cs.LG'] |
+| keywords | 追踪的关键词 | [] |
+| authors | 追踪的作者 | [] |
+| maxResults | 最大结果数 | 50 |
 
 ## 常见问题
 
@@ -151,18 +174,20 @@ npm run lint:check
 ### 第一阶段（已完成）
 - [x] 使用Zotero Plugin Template初始化项目结构
 - [x] 创建设置面板UI，包含API Key输入、网站选择、阈值滑块、快捷键设置
-- [x] 实现Zotero文献读取模块
-- [x] 设计向量存储方案（SQLite + sqlite-vss）
+- [x] 实现Zotero文献读取模块（支持获取选中文献）
+- [x] 设计向量存储方案（SQLite）
 - [x] 实现插件主入口和初始化逻辑
+- [x] 实现文献向量生成功能（支持OpenAI API和本地伪向量）
+- [x] 实现网站爬虫（arXiv）
+- [x] 实现向量相似度计算和相关文献筛选
+- [x] 集成大模型API（OpenAI）
 - [x] 创建项目文档和TODO列表
 
 ### 第二阶段
-- [ ] 实现文献向量生成功能（使用sentence-transformers）
-- [ ] 实现网站爬虫（arXiv和PubMed）
 - [ ] 实现引用追踪功能
-- [ ] 实现向量相似度计算和相关文献筛选
-- [ ] 集成大模型API（OpenAI/Claude）
 - [ ] 实现文献推送功能
+- [ ] 支持PubMed网站爬虫
+- [ ] 集成Claude API
 
 ### 第三阶段
 - [ ] 添加更多可追踪的文献网站

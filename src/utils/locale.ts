@@ -1,6 +1,9 @@
 import { config } from "../../package.json";
 import { FluentMessageId } from "../../typings/i10n";
 
+// 类型声明
+declare const Localization: any;
+
 export { initLocale, getString, getLocaleID };
 
 /**

@@ -4,6 +4,7 @@ import hooks from "./hooks";
 import { createZToolkit } from "./utils/ztoolkit";
 import { LiteratureReader } from "./modules/literatureReader";
 import { VectorStore } from "./modules/vectorStore";
+import { VectorGenerator } from "./modules/vectorGenerator";
 import { LiteratureTrackingService } from "./modules/literatureTrackingService";
 
 class Addon {
@@ -23,6 +24,7 @@ class Addon {
     dialog?: DialogHelper;
     literatureReader?: LiteratureReader;
     vectorStore?: VectorStore;
+    vectorGenerator?: VectorGenerator;
     literatureTrackingService?: LiteratureTrackingService;
     shortcutKey?: string;
   };
@@ -58,6 +60,10 @@ class Addon {
       const dbPath = (zotero as any).ProfD + "/literature-tracker.sqlite";
       this.data.vectorStore = new VectorStore(dbPath);
       await this.data.vectorStore.initialize();
+
+      // 初始化向量生成器
+      const apiKey = zotero.Prefs.get("extensions.zotero.literature-tracker.apiKey") as string | null;
+      this.data.vectorGenerator = new VectorGenerator(apiKey);
 
       // 初始化文献追踪服务
       this.data.literatureTrackingService = new LiteratureTrackingService(zotero as any);
@@ -105,6 +111,59 @@ class Addon {
           }
         }]
       });
+    }
+  }
+
+  /**
+   * 生成选中文献的向量
+   */
+  public async generateSelectedLiteratureVectors(): Promise<void> {
+    try {
+      ztoolkit.log("Generating vectors for selected literature...");
+
+      // 检查必要的组件是否初始化
+      if (!this.data.literatureReader || !this.data.vectorGenerator || !this.data.vectorStore) {
+        ztoolkit.log("Required components not initialized");
+        return;
+      }
+
+      // 获取选中的文献
+      const selectedLiterature = await this.data.literatureReader.getSelectedLiterature();
+      
+      if (selectedLiterature.length === 0) {
+        ztoolkit.log("No literature selected");
+        return;
+      }
+
+      ztoolkit.log(`Generating vectors for ${selectedLiterature.length} selected items`);
+
+      // 生成向量
+      const vectors = await this.data.vectorGenerator.generateVectors(selectedLiterature);
+
+      // 存储向量
+      for (const item of vectors) {
+        await this.data.vectorStore.insertVector(item.literature, item.vector);
+      }
+
+      ztoolkit.log(`Successfully generated and stored vectors for ${vectors.length} items`);
+
+      // 显示通知
+      const zotero = this.data.ztoolkit.getGlobal("Zotero");
+      // 使用 Zotero 的通知系统
+      new ztoolkit.ProgressWindow(addon.data.config.addonName, {
+        closeOnClick: true,
+        closeTime: -1,
+      })
+        .createLine({
+          text: `Successfully generated vectors for ${vectors.length} items`,
+          type: "default",
+          progress: 100,
+        })
+        .show()
+        .startCloseTimer(3000);
+
+    } catch (error) {
+      ztoolkit.log(`Error generating vectors for selected literature: ${error}`);
     }
   }
 

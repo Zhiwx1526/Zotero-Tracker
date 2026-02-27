@@ -2,6 +2,10 @@ import { getString, initLocale } from "./utils/locale";
 import { registerPrefsScripts } from "./modules/preferenceScript";
 import { createZToolkit } from "./utils/ztoolkit";
 
+// 类型声明
+declare const Zotero: any;
+declare const _ZoteroTypes: any;
+
 async function onStartup() {
   await Promise.all([
     Zotero.initializationPromise,
@@ -19,7 +23,7 @@ async function onStartup() {
   );
 }
 
-async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
+async function onMainWindowLoad(win: any): Promise<void> {
   // Create ztoolkit for every window
   addon.data.ztoolkit = createZToolkit();
 
@@ -40,11 +44,83 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
 
   await Zotero.Promise.delay(500);
 
+  // 添加菜单项
+  addMenuItems(win);
+
   popupWin.changeLine({
     progress: 100,
     text: `[100%] ${getString("startup-finish")}`,
   });
   popupWin.startCloseTimer(2000);
+}
+
+/**
+ * 添加菜单项
+ * @param win 主窗口
+ */
+function addMenuItems(win: any) {
+  try {
+    // 获取工具菜单
+    const toolsMenu = win.document.getElementById("menu_ToolsPopup");
+    if (!toolsMenu) {
+      ztoolkit.log("Tools menu not found");
+      return;
+    }
+
+    // 创建分隔符
+    const separator = win.document.createXULElement("menuseparator");
+    separator.id = "literature-tracker-separator";
+
+    // 创建主菜单项
+    const mainMenuItem = win.document.createXULElement("menu");
+    mainMenuItem.id = "literature-tracker-menu";
+    mainMenuItem.setAttribute("label", "Literature Tracker");
+
+    // 创建子菜单
+    const subMenu = win.document.createXULElement("menupopup");
+    subMenu.id = "literature-tracker-submenu";
+
+    // 创建生成向量菜单项
+    const generateVectorMenuItem = win.document.createXULElement("menuitem");
+    generateVectorMenuItem.id = "literature-tracker-generate-vectors";
+    generateVectorMenuItem.setAttribute("label", "Generate Vectors for Selected Items");
+    generateVectorMenuItem.setAttribute("accesskey", "G");
+    generateVectorMenuItem.addEventListener("command", () => {
+      addon.hooks.generateSelectedLiteratureVectors();
+    });
+
+    // 创建追踪文献菜单项
+    const trackLiteratureMenuItem = win.document.createXULElement("menuitem");
+    trackLiteratureMenuItem.id = "literature-tracker-track-literature";
+    trackLiteratureMenuItem.setAttribute("label", "Track Literature");
+    trackLiteratureMenuItem.setAttribute("accesskey", "T");
+    trackLiteratureMenuItem.addEventListener("command", () => {
+      addon.hooks.triggerLiteratureTracking();
+    });
+
+    // 创建设置菜单项
+    const settingsMenuItem = win.document.createXULElement("menuitem");
+    settingsMenuItem.id = "literature-tracker-settings";
+    settingsMenuItem.setAttribute("label", "Settings");
+    settingsMenuItem.setAttribute("accesskey", "S");
+    settingsMenuItem.addEventListener("command", () => {
+      addon.hooks.openSettingsWindow();
+    });
+
+    // 组装菜单
+    subMenu.appendChild(generateVectorMenuItem);
+    subMenu.appendChild(trackLiteratureMenuItem);
+    subMenu.appendChild(settingsMenuItem);
+    mainMenuItem.appendChild(subMenu);
+
+    // 添加到工具菜单
+    toolsMenu.appendChild(separator);
+    toolsMenu.appendChild(mainMenuItem);
+
+    ztoolkit.log("Menu items added successfully");
+  } catch (error) {
+    ztoolkit.log(`Error adding menu items: ${error}`);
+  }
 }
 
 async function onMainWindowUnload(win: Window): Promise<void> {
@@ -61,7 +137,6 @@ async function onShutdown(): Promise<void> {
 
   // Remove addon object
   addon.data.alive = false;
-  // @ts-expect-error - Plugin instance is not typed
   delete Zotero[addon.data.config.addonInstance];
 }
 
@@ -146,16 +221,16 @@ async function triggerLiteratureTracking() {
     // 使用文献追踪服务获取文献
     if (addon.data.literatureTrackingService) {
       await Zotero.Promise.delay(500);
-      
+
       popupWin.changeLine({
         progress: 30,
         text: "正在从arXiv获取最新文献...",
       });
 
       const papers = await addon.data.literatureTrackingService.fetchRecentPapers(7);
-      
+
       await Zotero.Promise.delay(500);
-      
+
       popupWin.changeLine({
         progress: 70,
         text: `找到 ${papers.length} 篇新文献`,
@@ -167,9 +242,9 @@ async function triggerLiteratureTracking() {
         progress: 100,
         text: `文献追踪完成！共获取 ${papers.length} 篇文献`,
       });
-      
+
       ztoolkit.log(`Fetched ${papers.length} papers from arXiv`);
-      
+
       // 可以在这里添加将文献保存到Zotero的逻辑
       // 或者显示文献列表供用户选择
     } else {
@@ -193,6 +268,51 @@ async function triggerLiteratureTracking() {
   }
 }
 
+/**
+ * 生成选中文献的向量
+ */
+async function generateSelectedLiteratureVectors() {
+  try {
+    const popupWin = new ztoolkit.ProgressWindow(addon.data.config.addonName, {
+      closeOnClick: true,
+      closeTime: -1,
+    })
+      .createLine({
+        text: "开始生成选中文献的向量...",
+        type: "default",
+        progress: 0,
+      })
+      .show();
+
+    await Zotero.Promise.delay(500);
+
+    // 调用插件的方法生成向量
+    await addon.generateSelectedLiteratureVectors();
+
+    await Zotero.Promise.delay(500);
+
+    popupWin.changeLine({
+      progress: 100,
+      text: "向量生成完成！",
+    });
+
+    popupWin.startCloseTimer(3000);
+  } catch (error) {
+    ztoolkit.log(`Error generating vectors: ${error}`);
+    new ztoolkit.ProgressWindow(addon.data.config.addonName, {
+      closeOnClick: true,
+      closeTime: -1,
+    })
+      .createLine({
+        text: `向量生成失败: ${error}`,
+        type: "error",
+        progress: 100,
+      })
+      .show()
+      .startCloseTimer(3000);
+  }
+}
+
 // Add your hooks here. For element click, etc.
 // Keep in mind hooks only do dispatch. Don't add code that does real jobs in hooks.
 // Otherwise the code would be hard to read and maintain.
@@ -207,4 +327,5 @@ export default {
   onShortcutKey,
   openSettingsWindow,
   triggerLiteratureTracking,
-};
+  generateSelectedLiteratureVectors,
+}; 

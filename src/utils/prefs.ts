@@ -1,6 +1,10 @@
 import { config } from "../../package.json";
 
-type PluginPrefsMap = _ZoteroTypes.Prefs["PluginPrefsMap"];
+// 类型声明
+declare const Zotero: any;
+declare const _ZoteroTypes: any;
+
+type PluginPrefsMap = any;
 
 const PREFS_PREFIX = config.prefsPrefix;
 
@@ -10,7 +14,7 @@ const PREFS_PREFIX = config.prefsPrefix;
  * @param key
  */
 export function getPref<K extends keyof PluginPrefsMap>(key: K) {
-  return Zotero.Prefs.get(`${PREFS_PREFIX}.${key}`, true) as PluginPrefsMap[K];
+  return Zotero.Prefs.get(`${PREFS_PREFIX}.${String(key)}`, true) as PluginPrefsMap[K];
 }
 
 /**
@@ -23,7 +27,7 @@ export function setPref<K extends keyof PluginPrefsMap>(
   key: K,
   value: PluginPrefsMap[K],
 ) {
-  return Zotero.Prefs.set(`${PREFS_PREFIX}.${key}`, value, true);
+  return Zotero.Prefs.set(`${PREFS_PREFIX}.${String(key)}`, value, true);
 }
 
 /**

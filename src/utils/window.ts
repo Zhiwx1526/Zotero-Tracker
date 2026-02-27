@@ -1,3 +1,6 @@
+// 类型声明
+declare const Components: any;
+
 export { isWindowAlive };
 
 /**
