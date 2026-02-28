@@ -9,6 +9,23 @@ export interface VectorData {
   createdAt: Date;
 }
 
+// 用户画像类型定义
+export interface UserProfile {
+  id: string;
+  interestVector: number[];
+  coreThemes: Array<{
+    theme: string;
+    weight: number;
+  }>;
+  keywords: Array<{
+    keyword: string;
+    weight: number;
+  }>;
+  interestDistribution: Record<string, number>;
+  lastUpdated: number;
+  literatureItems?: LiteratureItem[];
+}
+
 /**
  * 向量存储模块
  * 使用Zotero内置的SQLite实现向量的存储和查询
@@ -84,10 +101,25 @@ export class VectorStore {
       );
     `);
 
+    // 创建用户画像表
+    await this.db.execute(`
+      CREATE TABLE IF NOT EXISTS literature_tracker_user_profiles (
+        id TEXT PRIMARY KEY,
+        interest_vector TEXT,  -- 兴趣中心向量以JSON字符串形式存储
+        core_themes TEXT,      -- 核心主题以JSON字符串形式存储
+        keywords TEXT,         -- 关键词以JSON字符串形式存储
+        interest_distribution TEXT,  -- 兴趣分布以JSON字符串形式存储
+        last_updated INTEGER,  -- 最后更新时间戳
+        literature_items TEXT, -- 文献项以JSON字符串形式存储（可选）
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     // 创建索引
     await this.db.execute(`
       CREATE INDEX IF NOT EXISTS idx_literatures_literature_id ON literature_tracker_literatures(literature_id);
       CREATE INDEX IF NOT EXISTS idx_vectors_literature_id ON literature_tracker_vectors(literature_id);
+      CREATE INDEX IF NOT EXISTS idx_user_profiles_id ON literature_tracker_user_profiles(id);
     `);
   }
 
@@ -395,6 +427,134 @@ export class VectorStore {
     } catch {
       return defaultValue;
     }
+  }
+
+  /**
+   * 插入用户画像
+   * @param profile 用户画像对象
+   */
+  public async insertUserProfile(profile: UserProfile): Promise<void> {
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
+
+    await this.db.execute(
+      `
+      INSERT OR REPLACE INTO literature_tracker_user_profiles (
+        id, interest_vector, core_themes, keywords, interest_distribution, last_updated, literature_items
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        profile.id,
+        JSON.stringify(profile.interestVector),
+        JSON.stringify(profile.coreThemes),
+        JSON.stringify(profile.keywords),
+        JSON.stringify(profile.interestDistribution),
+        profile.lastUpdated,
+        JSON.stringify(profile.literatureItems || [])
+      ]
+    );
+  }
+
+  /**
+   * 获取用户画像
+   * @param userId 用户ID
+   */
+  public async getUserProfile(userId: string): Promise<UserProfile | null> {
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
+
+    const row = await this.db.queryAsync(
+      `
+      SELECT 
+        id, 
+        interest_vector, 
+        core_themes, 
+        keywords, 
+        interest_distribution, 
+        last_updated, 
+        literature_items
+      FROM literature_tracker_user_profiles
+      WHERE id = ?
+      `,
+      [userId]
+    );
+
+    if (!row || row.length === 0) {
+      return null;
+    }
+
+    const data = row[0];
+
+    return {
+      id: data.id,
+      interestVector: JSON.parse(data.interest_vector),
+      coreThemes: JSON.parse(data.core_themes),
+      keywords: JSON.parse(data.keywords),
+      interestDistribution: JSON.parse(data.interest_distribution),
+      lastUpdated: data.last_updated,
+      literatureItems: data.literature_items ? JSON.parse(data.literature_items) : undefined
+    };
+  }
+
+  /**
+   * 删除用户画像
+   * @param userId 用户ID
+   */
+  public async deleteUserProfile(userId: string): Promise<void> {
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
+
+    await this.db.execute(
+      'DELETE FROM literature_tracker_user_profiles WHERE id = ?',
+      [userId]
+    );
+  }
+
+  /**
+   * 清空用户画像
+   */
+  public async clearUserProfiles(): Promise<void> {
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
+
+    await this.db.execute('DELETE FROM literature_tracker_user_profiles');
+  }
+
+  /**
+   * 获取所有用户画像
+   */
+  public async getAllUserProfiles(): Promise<UserProfile[]> {
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
+
+    const rows = await this.db.queryAsync(
+      `
+      SELECT 
+        id, 
+        interest_vector, 
+        core_themes, 
+        keywords, 
+        interest_distribution, 
+        last_updated, 
+        literature_items
+      FROM literature_tracker_user_profiles
+      `
+    );
+
+    return rows.map((row: any) => ({
+      id: row.id,
+      interestVector: JSON.parse(row.interest_vector),
+      coreThemes: JSON.parse(row.core_themes),
+      keywords: JSON.parse(row.keywords),
+      interestDistribution: JSON.parse(row.interest_distribution),
+      lastUpdated: row.last_updated,
+      literatureItems: row.literature_items ? JSON.parse(row.literature_items) : undefined
+    }));
   }
 
   /**

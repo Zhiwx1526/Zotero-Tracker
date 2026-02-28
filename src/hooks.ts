@@ -89,6 +89,24 @@ function addMenuItems(win: any) {
       addon.hooks.generateSelectedLiteratureVectors();
     });
 
+    // 创建构建用户画像菜单项
+    const buildProfileMenuItem = win.document.createXULElement("menuitem");
+    buildProfileMenuItem.id = "literature-tracker-build-profile";
+    buildProfileMenuItem.setAttribute("label", "Build User Profile");
+    buildProfileMenuItem.setAttribute("accesskey", "B");
+    buildProfileMenuItem.addEventListener("command", () => {
+      addon.hooks.buildUserProfile();
+    });
+
+    // 创建更新用户画像菜单项
+    const updateProfileMenuItem = win.document.createXULElement("menuitem");
+    updateProfileMenuItem.id = "literature-tracker-update-profile";
+    updateProfileMenuItem.setAttribute("label", "Update User Profile");
+    updateProfileMenuItem.setAttribute("accesskey", "U");
+    updateProfileMenuItem.addEventListener("command", () => {
+      addon.hooks.updateUserProfile();
+    });
+
     // 创建追踪文献菜单项
     const trackLiteratureMenuItem = win.document.createXULElement("menuitem");
     trackLiteratureMenuItem.id = "literature-tracker-track-literature";
@@ -109,6 +127,8 @@ function addMenuItems(win: any) {
 
     // 组装菜单
     subMenu.appendChild(generateVectorMenuItem);
+    subMenu.appendChild(buildProfileMenuItem);
+    subMenu.appendChild(updateProfileMenuItem);
     subMenu.appendChild(trackLiteratureMenuItem);
     subMenu.appendChild(settingsMenuItem);
     mainMenuItem.appendChild(subMenu);
@@ -313,6 +333,96 @@ async function generateSelectedLiteratureVectors() {
   }
 }
 
+/**
+ * 构建用户画像
+ */
+async function buildUserProfile() {
+  try {
+    const popupWin = new ztoolkit.ProgressWindow(addon.data.config.addonName, {
+      closeOnClick: true,
+      closeTime: -1,
+    })
+      .createLine({
+        text: "开始构建用户画像...",
+        type: "default",
+        progress: 0,
+      })
+      .show();
+
+    await Zotero.Promise.delay(500);
+
+    // 调用插件的方法构建用户画像
+    await addon.buildUserProfile();
+
+    await Zotero.Promise.delay(500);
+
+    popupWin.changeLine({
+      progress: 100,
+      text: "用户画像构建完成！",
+    });
+
+    popupWin.startCloseTimer(3000);
+  } catch (error) {
+    ztoolkit.log(`Error building user profile: ${error}`);
+    new ztoolkit.ProgressWindow(addon.data.config.addonName, {
+      closeOnClick: true,
+      closeTime: -1,
+    })
+      .createLine({
+        text: `用户画像构建失败: ${error}`,
+        type: "error",
+        progress: 100,
+      })
+      .show()
+      .startCloseTimer(3000);
+  }
+}
+
+/**
+ * 更新用户画像
+ */
+async function updateUserProfile() {
+  try {
+    const popupWin = new ztoolkit.ProgressWindow(addon.data.config.addonName, {
+      closeOnClick: true,
+      closeTime: -1,
+    })
+      .createLine({
+        text: "开始更新用户画像...",
+        type: "default",
+        progress: 0,
+      })
+      .show();
+
+    await Zotero.Promise.delay(500);
+
+    // 调用插件的方法更新用户画像
+    await addon.updateUserProfile();
+
+    await Zotero.Promise.delay(500);
+
+    popupWin.changeLine({
+      progress: 100,
+      text: "用户画像更新完成！",
+    });
+
+    popupWin.startCloseTimer(3000);
+  } catch (error) {
+    ztoolkit.log(`Error updating user profile: ${error}`);
+    new ztoolkit.ProgressWindow(addon.data.config.addonName, {
+      closeOnClick: true,
+      closeTime: -1,
+    })
+      .createLine({
+        text: `用户画像更新失败: ${error}`,
+        type: "error",
+        progress: 100,
+      })
+      .show()
+      .startCloseTimer(3000);
+  }
+}
+
 // Add your hooks here. For element click, etc.
 // Keep in mind hooks only do dispatch. Don't add code that does real jobs in hooks.
 // Otherwise the code would be hard to read and maintain.
@@ -328,4 +438,6 @@ export default {
   openSettingsWindow,
   triggerLiteratureTracking,
   generateSelectedLiteratureVectors,
+  buildUserProfile,
+  updateUserProfile,
 }; 

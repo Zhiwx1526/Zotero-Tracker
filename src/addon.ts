@@ -6,6 +6,7 @@ import { LiteratureReader } from "./modules/literatureReader";
 import { VectorStore } from "./modules/vectorStore";
 import { VectorGenerator } from "./modules/vectorGenerator";
 import { LiteratureTrackingService } from "./modules/literatureTrackingService";
+import { UserProfileManager } from "./modules/userProfile";
 
 class Addon {
   public data: {
@@ -26,6 +27,7 @@ class Addon {
     vectorStore?: VectorStore;
     vectorGenerator?: VectorGenerator;
     literatureTrackingService?: LiteratureTrackingService;
+    userProfileManager?: UserProfileManager;
     shortcutKey?: string;
   };
   // Lifecycle hooks
@@ -67,6 +69,9 @@ class Addon {
 
       // 初始化文献追踪服务
       this.data.literatureTrackingService = new LiteratureTrackingService(zotero as any);
+
+      // 初始化用户画像管理器
+      this.data.userProfileManager = new UserProfileManager(this.data.vectorStore!, this.data.vectorGenerator!);
 
       // 加载快捷键设置
       this.loadShortcutKey();
@@ -129,7 +134,7 @@ class Addon {
 
       // 获取选中的文献
       const selectedLiterature = await this.data.literatureReader.getSelectedLiterature();
-      
+
       if (selectedLiterature.length === 0) {
         ztoolkit.log("No literature selected");
         return;
@@ -164,6 +169,130 @@ class Addon {
 
     } catch (error) {
       ztoolkit.log(`Error generating vectors for selected literature: ${error}`);
+    }
+  }
+
+  /**
+   * 构建用户画像
+   */
+  public async buildUserProfile(): Promise<void> {
+    try {
+      ztoolkit.log("Building user profile...");
+
+      // 检查必要的组件是否初始化
+      if (!this.data.literatureReader || !this.data.userProfileManager) {
+        ztoolkit.log("Required components not initialized");
+        return;
+      }
+
+      // 获取所有文献
+      const allLiterature = await this.data.literatureReader.getAllLiterature();
+
+      if (allLiterature.length === 0) {
+        ztoolkit.log("No literature found in library");
+        return;
+      }
+
+      ztoolkit.log(`Building profile based on ${allLiterature.length} literature items`);
+
+      // 构建用户画像
+      const userID = "default"; // 默认为默认用户
+      const profile = await this.data.userProfileManager.buildUserProfile(userID, allLiterature);
+
+      ztoolkit.log(`Successfully built user profile with ${profile.coreThemes.length} core themes and ${profile.keywords.length} keywords`);
+
+      // 显示通知
+      new ztoolkit.ProgressWindow(addon.data.config.addonName, {
+        closeOnClick: true,
+        closeTime: -1,
+      })
+        .createLine({
+          text: `Successfully built user profile with ${profile.coreThemes.length} core themes`,
+          type: "default",
+          progress: 100,
+        })
+        .show()
+        .startCloseTimer(3000);
+
+    } catch (error) {
+      ztoolkit.log(`Error building user profile: ${error}`);
+    }
+  }
+
+  /**
+   * 更新用户画像
+   */
+  public async updateUserProfile(): Promise<void> {
+    try {
+      ztoolkit.log("Updating user profile...");
+
+      // 检查必要的组件是否初始化
+      if (!this.data.literatureReader || !this.data.userProfileManager) {
+        ztoolkit.log("Required components not initialized");
+        return;
+      }
+
+      // 获取所有文献
+      const allLiterature = await this.data.literatureReader.getAllLiterature();
+
+      if (allLiterature.length === 0) {
+        ztoolkit.log("No literature found in library");
+        return;
+      }
+
+      ztoolkit.log(`Updating profile based on ${allLiterature.length} literature items`);
+
+      // 更新用户画像
+      const userID = "default"; // 默认为默认用户
+      const profile = await this.data.userProfileManager.rebuildUserProfile(userID, allLiterature);
+
+      ztoolkit.log(`Successfully updated user profile with ${profile.coreThemes.length} core themes and ${profile.keywords.length} keywords`);
+
+      // 显示通知
+      new ztoolkit.ProgressWindow(addon.data.config.addonName, {
+        closeOnClick: true,
+        closeTime: -1,
+      })
+        .createLine({
+          text: `Successfully updated user profile with ${profile.coreThemes.length} core themes`,
+          type: "default",
+          progress: 100,
+        })
+        .show()
+        .startCloseTimer(3000);
+
+    } catch (error) {
+      ztoolkit.log(`Error updating user profile: ${error}`);
+    }
+  }
+
+  /**
+   * 获取用户画像
+   */
+  public async getUserProfile(): Promise<any> {
+    try {
+      ztoolkit.log("Getting user profile...");
+
+      // 检查必要的组件是否初始化
+      if (!this.data.userProfileManager) {
+        ztoolkit.log("User profile manager not initialized");
+        return null;
+      }
+
+      // 获取用户画像
+      const userID = "default"; // 默认为默认用户
+      const profile = await this.data.userProfileManager.getUserProfile(userID);
+
+      if (profile) {
+        ztoolkit.log(`Retrieved user profile with ${profile.coreThemes.length} core themes`);
+      } else {
+        ztoolkit.log("No user profile found");
+      }
+
+      return profile;
+    } catch (error) {
+      ztoolkit.log(`Error getting user profile: ${error}`);
+      return null;
     }
   }
 
