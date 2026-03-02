@@ -15,6 +15,7 @@ export interface UserProfile {
   }>;
   interestDistribution: Record<string, number>;
   lastUpdated: number;
+  literatureItems?: LiteratureItem[];
 }
 
 export interface ThemeVector {
@@ -134,33 +135,41 @@ export class UserProfileManager {
       const allKeywords: Record<string, number> = {};
 
       for (const literature of literatureItems) {
-        // 检查向量是否已存在
-        let vectorData = await this.vectorStore.getVectorByLiteratureId(literature.id);
-        let vector;
-        if (!vectorData) {
-          // 生成新向量
-          vector = await this.vectorGenerator.generateVector(literature);
-          // 存储向量
-          await this.vectorStore.insertVector(literature, vector);
-        } else {
-          vector = vectorData.vector;
-        }
-        vectors.push(vector);
-        weights.push(1); // 默认权重为1
+        try {
+          // 检查向量是否已存在
+          let vectorData = await this.vectorStore.getVectorByLiteratureId(literature.id);
+          let vector;
+          if (!vectorData) {
+            // 生成新向量
+            vector = await this.vectorGenerator.generateVector(literature);
+            // 存储向量
+            await this.vectorStore.insertVector(literature, vector);
+          } else {
+            vector = vectorData.vector;
+          }
+          vectors.push(vector);
+          weights.push(1); // 默认权重为1
 
-        // 提取关键词
-        const keywords = this.extractKeywords(literature);
-        for (const keyword of keywords) {
-          allKeywords[keyword] = (allKeywords[keyword] || 0) + 1;
+          // 提取关键词
+          const keywords = this.extractKeywords(literature);
+          for (const keyword of keywords) {
+            allKeywords[keyword] = (allKeywords[keyword] || 0) + 1;
+          }
+        } catch (error) {
+          ztoolkit.log(`Error processing literature ${literature.id}: ${error}`);
+          // 继续处理其他文献
         }
-      }
-
-      if (vectors.length === 0) {
-        throw new Error('No literature vectors found');
       }
 
       // 计算兴趣中心向量
-      const interestVector = this.calculateWeightedAverage(vectors, weights);
+      let interestVector: number[];
+      if (vectors.length === 0) {
+        ztoolkit.log('No literature vectors found, creating default profile');
+        // 当没有文献向量时，创建默认的用户画像
+        interestVector = this.generateDummyVector('Default User Profile');
+      } else {
+        interestVector = this.calculateWeightedAverage(vectors, weights);
+      }
 
       // 识别核心兴趣主题
       const coreThemes: Array<{ theme: string; weight: number }> = [];
@@ -190,7 +199,8 @@ export class UserProfileManager {
         coreThemes,
         keywords,
         interestDistribution,
-        lastUpdated: Date.now()
+        lastUpdated: Date.now(),
+        literatureItems // 存储文献列表
       };
 
       // 存储用户画像
@@ -199,7 +209,18 @@ export class UserProfileManager {
       return profile;
     } catch (error) {
       ztoolkit.log(`Error building user profile: ${error}`);
-      throw error;
+      // 当出现错误时，返回默认的用户画像
+      const defaultProfile: UserProfile = {
+        id: userID,
+        interestVector: this.generateDummyVector('Default User Profile'),
+        coreThemes: [],
+        keywords: [],
+        interestDistribution: {},
+        lastUpdated: Date.now(),
+        literatureItems: []
+      };
+      await this.vectorStore.insertUserProfile(defaultProfile);
+      return defaultProfile;
     }
   }
 
@@ -212,13 +233,15 @@ export class UserProfileManager {
       const existingProfile = await this.vectorStore.getUserProfile(userID);
 
       // 获取所有文献（包括新添加的）
-      const allLiterature = [...existingProfile?.literatureItems || [], ...newLiteratureItems];
+      const existingLiterature = existingProfile?.literatureItems || [];
+      const allLiterature = [...existingLiterature, ...newLiteratureItems];
 
       // 重新构建画像
       return this.buildUserProfile(userID, allLiterature);
     } catch (error) {
       ztoolkit.log(`Error updating user profile: ${error}`);
-      throw error;
+      // 当出现错误时，直接构建新的用户画像
+      return this.buildUserProfile(userID, newLiteratureItems);
     }
   }
 

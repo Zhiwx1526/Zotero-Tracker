@@ -20,9 +20,18 @@ export interface ArxivSearchOptions {
 }
 
 export class ArxivCrawler {
-  private readonly API_BASE_URL = 'http://export.arxiv.org/api/query';
+  // 使用本地Python服务器获取文献
+  private readonly API_BASE_URL = 'http://api.wlai.vip/arxiv';
+  private readonly PYTHON_API_URL = 'http://localhost:5000';
 
   constructor(private zotero: any) { }
+
+  // 生成5-10秒的随机延迟
+  private async delay(): Promise<void> {
+    const delayMs = Math.floor(Math.random() * 5000) + 5000; // 5-10秒
+    this.zotero.debug(`Waiting ${delayMs}ms before next request`);
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+  }
 
   async searchPapers(options: ArxivSearchOptions): Promise<ArxivPaper[]> {
     const {
@@ -34,14 +43,47 @@ export class ArxivCrawler {
     } = options;
 
     try {
+      // 尝试使用Python服务器
+      try {
+        const pythonUrl = `${this.PYTHON_API_URL}/search?query=${encodeURIComponent(query)}&maxResults=${maxResults}&sortBy=${sortBy}&sortOrder=${sortOrder}&start=${start}`;
+
+        const response = await fetch(pythonUrl, {
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const papers = await response.json();
+          this.zotero.debug(`Successfully fetched ${papers.length} papers from Python API`);
+          return papers as ArxivPaper[];
+        }
+      } catch (pythonError) {
+        this.zotero.debug(`Python API error: ${pythonError}, falling back to default API`);
+      }
+
+      // 回退到默认API
       const url = this.buildSearchUrl(query, maxResults, sortBy, sortOrder, start);
-      const response = await fetch(url);
+
+      // 使用完整的请求头模拟浏览器请求
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'en-US,en;q=0.9'
+        }
+        // 移除 AbortSignal，因为 Zotero 环境可能不支持
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const xmlText = await response.text();
+
+      // 请求完成后添加延迟
+      await this.delay();
+
       return this.parseArxivResponse(xmlText);
     } catch (error) {
       this.zotero.debug(`Error searching arXiv: ${error}`);
@@ -171,40 +213,186 @@ export class ArxivCrawler {
   }
 
   async getPaperById(arxivId: string): Promise<ArxivPaper | null> {
-    const query = `id:${arxivId}`;
-    const papers = await this.searchPapers({ query, maxResults: 1 });
-    return papers.length > 0 ? papers[0] : null;
+    try {
+      // 尝试使用Python服务器
+      try {
+        const pythonUrl = `${this.PYTHON_API_URL}/paper/${arxivId}`;
+
+        const response = await fetch(pythonUrl, {
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const paper = await response.json();
+          this.zotero.debug(`Successfully fetched paper ${arxivId} from Python API`);
+          return paper as ArxivPaper | null;
+        }
+      } catch (pythonError) {
+        this.zotero.debug(`Python API error: ${pythonError}, falling back to default API`);
+      }
+
+      // 回退到默认API
+      const query = `id:${arxivId}`;
+      const papers = await this.searchPapers({ query, maxResults: 1 });
+      return papers.length > 0 ? papers[0] : null;
+    } catch (error) {
+      this.zotero.debug(`Error getting paper by ID: ${error}`);
+      return null;
+    }
   }
 
   async searchByCategory(
     category: string,
     options?: Partial<ArxivSearchOptions>
   ): Promise<ArxivPaper[]> {
-    const query = `cat:${category}`;
-    return this.searchPapers({ query, ...options });
+    try {
+      // 尝试使用Python服务器
+      try {
+        const {
+          maxResults = 20,
+          sortBy = 'relevance',
+          sortOrder = 'descending',
+          start = 0
+        } = options || {};
+
+        const pythonUrl = `${this.PYTHON_API_URL}/search/category?category=${encodeURIComponent(category)}&maxResults=${maxResults}&sortBy=${sortBy}&sortOrder=${sortOrder}&start=${start}`;
+
+        const response = await fetch(pythonUrl, {
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const papers = await response.json();
+          this.zotero.debug(`Successfully fetched papers from category ${category} from Python API`);
+          return papers as ArxivPaper[];
+        }
+      } catch (pythonError) {
+        this.zotero.debug(`Python API error: ${pythonError}, falling back to default API`);
+      }
+
+      // 回退到默认API
+      const query = `cat:${category}`;
+      return this.searchPapers({ query, ...options });
+    } catch (error) {
+      this.zotero.debug(`Error searching by category: ${error}`);
+      throw error;
+    }
   }
 
   async searchByAuthor(author: string, options?: Partial<ArxivSearchOptions>): Promise<ArxivPaper[]> {
-    const query = `au:${author}`;
-    return this.searchPapers({ query, ...options });
+    try {
+      // 尝试使用Python服务器
+      try {
+        const {
+          maxResults = 20,
+          sortBy = 'relevance',
+          sortOrder = 'descending',
+          start = 0
+        } = options || {};
+
+        const pythonUrl = `${this.PYTHON_API_URL}/search/author?author=${encodeURIComponent(author)}&maxResults=${maxResults}&sortBy=${sortBy}&sortOrder=${sortOrder}&start=${start}`;
+
+        const response = await fetch(pythonUrl, {
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const papers = await response.json();
+          this.zotero.debug(`Successfully fetched papers by author ${author} from Python API`);
+          return papers as ArxivPaper[];
+        }
+      } catch (pythonError) {
+        this.zotero.debug(`Python API error: ${pythonError}, falling back to default API`);
+      }
+
+      // 回退到默认API
+      const query = `au:${author}`;
+      return this.searchPapers({ query, ...options });
+    } catch (error) {
+      this.zotero.debug(`Error searching by author: ${error}`);
+      throw error;
+    }
   }
 
   async searchByKeyword(keyword: string, options?: Partial<ArxivSearchOptions>): Promise<ArxivPaper[]> {
-    const query = `all:${keyword}`;
-    return this.searchPapers({ query, ...options });
+    try {
+      // 尝试使用Python服务器
+      try {
+        const {
+          maxResults = 20,
+          sortBy = 'relevance',
+          sortOrder = 'descending',
+          start = 0
+        } = options || {};
+
+        const pythonUrl = `${this.PYTHON_API_URL}/search/keyword?keyword=${encodeURIComponent(keyword)}&maxResults=${maxResults}&sortBy=${sortBy}&sortOrder=${sortOrder}&start=${start}`;
+
+        const response = await fetch(pythonUrl, {
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const papers = await response.json();
+          this.zotero.debug(`Successfully fetched papers by keyword ${keyword} from Python API`);
+          return papers as ArxivPaper[];
+        }
+      } catch (pythonError) {
+        this.zotero.debug(`Python API error: ${pythonError}, falling back to default API`);
+      }
+
+      // 回退到默认API
+      const query = `all:${keyword}`;
+      return this.searchPapers({ query, ...options });
+    } catch (error) {
+      this.zotero.debug(`Error searching by keyword: ${error}`);
+      throw error;
+    }
   }
 
   async getRecentPapers(category: string, days: number = 7): Promise<ArxivPaper[]> {
-    const date = new Date();
-    date.setDate(date.getDate() - days);
-    const dateStr = date.toISOString().split('T')[0];
+    try {
+      // 尝试使用Python服务器
+      try {
+        const pythonUrl = `${this.PYTHON_API_URL}/recent?category=${encodeURIComponent(category)}&days=${days}`;
 
-    const query = `cat:${category} AND submittedDate:[${dateStr} TO *]`;
-    return this.searchPapers({
-      query,
-      maxResults: 100,
-      sortBy: 'submittedDate',
-      sortOrder: 'descending'
-    });
+        const response = await fetch(pythonUrl, {
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const papers = await response.json();
+          this.zotero.debug(`Successfully fetched recent papers from category ${category} from Python API`);
+          return papers as ArxivPaper[];
+        }
+      } catch (pythonError) {
+        this.zotero.debug(`Python API error: ${pythonError}, falling back to default API`);
+      }
+
+      // 回退到默认API
+      const date = new Date();
+      date.setDate(date.getDate() - days);
+      const dateStr = date.toISOString().split('T')[0];
+
+      const query = `cat:${category} AND submittedDate:[${dateStr} TO *]`;
+      return this.searchPapers({
+        query,
+        maxResults: 100,
+        sortBy: 'submittedDate',
+        sortOrder: 'descending'
+      });
+    } catch (error) {
+      this.zotero.debug(`Error getting recent papers: ${error}`);
+      throw error;
+    }
   }
 }

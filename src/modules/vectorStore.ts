@@ -45,13 +45,187 @@ export class VectorStore {
     try {
       const zotero = ztoolkit.getGlobal("Zotero");
 
-      // 使用Zotero.DB直接操作
+      // 尝试使用Zotero.DB
       this.db = zotero.DB;
+
+      // 即使Zotero.DB不可用，我们也可以通过Zotero.SQLite直接操作数据库文件
+      // 所以不需要在这里抛出错误，而是在实际执行SQL时处理
+
+      // 确保数据库文件存在
+      if (zotero.SQLite) {
+        // 尝试打开数据库文件以确保它存在
+        const dbPath = this.dbPath;
+        await new Promise<void>((resolve, reject) => {
+          zotero.SQLite.DB.execute(dbPath, 'PRAGMA journal_mode = WAL;', [], (success: boolean) => {
+            if (success) {
+              resolve();
+            } else {
+              reject(new Error('Failed to initialize database file'));
+            }
+          });
+        });
+      }
 
       // 创建表结构
       await this.createTables();
     } catch (error) {
       ztoolkit.log(`Error initializing vector store: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * 执行SQL语句
+   */
+  private async executeSQL(sql: string, params?: any[]): Promise<void> {
+    try {
+      // 尝试不同的数据库执行方法
+      if (this.db) {
+        if (this.db.execute) {
+          // 使用execute方法
+          await this.db.execute(sql, params);
+        } else if (this.db.executeQuery) {
+          // 使用executeQuery方法
+          this.db.executeQuery(sql, params);
+        } else if (this.db.executeTransaction) {
+          // 使用executeTransaction方法
+          await this.db.executeTransaction(async (connection: any) => {
+            if (connection.execute) {
+              await connection.execute(sql, params);
+            } else if (connection.executeQuery) {
+              connection.executeQuery(sql, params);
+            } else {
+              // 尝试直接使用Zotero的SQLite方法
+              const zotero = ztoolkit.getGlobal("Zotero");
+              if (zotero.SQLite) {
+                const dbPath = this.dbPath;
+                await new Promise<void>((resolve, reject) => {
+                  zotero.SQLite.DB.execute(dbPath, sql, params || [], (success: boolean) => {
+                    if (success) {
+                      resolve();
+                    } else {
+                      reject(new Error('SQL execution failed'));
+                    }
+                  });
+                });
+              } else {
+                throw new Error('No suitable database execution method found');
+              }
+            }
+          });
+        } else {
+          // 尝试直接使用Zotero的SQLite方法
+          const zotero = ztoolkit.getGlobal("Zotero");
+          if (zotero.SQLite) {
+            const dbPath = this.dbPath;
+            await new Promise<void>((resolve, reject) => {
+              zotero.SQLite.DB.execute(dbPath, sql, params || [], (success: boolean) => {
+                if (success) {
+                  resolve();
+                } else {
+                  reject(new Error('SQL execution failed'));
+                }
+              });
+            });
+          } else {
+            throw new Error('No suitable database execution method found');
+          }
+        }
+      } else {
+        // 直接使用Zotero的SQLite方法
+        const zotero = ztoolkit.getGlobal("Zotero");
+        if (zotero.SQLite) {
+          const dbPath = this.dbPath;
+          await new Promise<void>((resolve, reject) => {
+            zotero.SQLite.DB.execute(dbPath, sql, params || [], (success: boolean) => {
+              if (success) {
+                resolve();
+              } else {
+                reject(new Error('SQL execution failed'));
+              }
+            });
+          });
+        } else {
+          throw new Error('No suitable database execution method found');
+        }
+      }
+    } catch (error) {
+      ztoolkit.log(`Error executing SQL: ${sql}\nError: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * 执行查询SQL语句
+   */
+  private async querySQL(sql: string, params?: any[]): Promise<any[]> {
+    try {
+      // 尝试不同的数据库查询方法
+      if (this.db) {
+        if (this.db.queryAsync) {
+          // 使用queryAsync方法
+          return await this.db.queryAsync(sql, params);
+        } else if (this.db.query) {
+          // 使用query方法
+          return this.db.query(sql, params);
+        } else if (this.db.executeTransaction) {
+          // 使用executeTransaction方法
+          return await this.db.executeTransaction(async (connection: any) => {
+            if (connection.queryAsync) {
+              return await connection.queryAsync(sql, params);
+            } else if (connection.query) {
+              return connection.query(sql, params);
+            } else {
+              // 尝试直接使用Zotero的SQLite方法
+              const zotero = ztoolkit.getGlobal("Zotero");
+              if (zotero.SQLite) {
+                const dbPath = this.dbPath;
+                return await new Promise<any[]>((resolve, reject) => {
+                  zotero.SQLite.DB.query(dbPath, sql, params || [], (rows: any[]) => {
+                    resolve(rows);
+                  }, (error: any) => {
+                    reject(error);
+                  });
+                });
+              } else {
+                throw new Error('No suitable database query method found');
+              }
+            }
+          });
+        } else {
+          // 尝试直接使用Zotero的SQLite方法
+          const zotero = ztoolkit.getGlobal("Zotero");
+          if (zotero.SQLite) {
+            const dbPath = this.dbPath;
+            return await new Promise<any[]>((resolve, reject) => {
+              zotero.SQLite.DB.query(dbPath, sql, params || [], (rows: any[]) => {
+                resolve(rows);
+              }, (error: any) => {
+                reject(error);
+              });
+            });
+          } else {
+            throw new Error('No suitable database query method found');
+          }
+        }
+      } else {
+        // 直接使用Zotero的SQLite方法
+        const zotero = ztoolkit.getGlobal("Zotero");
+        if (zotero.SQLite) {
+          const dbPath = this.dbPath;
+          return await new Promise<any[]>((resolve, reject) => {
+            zotero.SQLite.DB.query(dbPath, sql, params || [], (rows: any[]) => {
+              resolve(rows);
+            }, (error: any) => {
+              reject(error);
+            });
+          });
+        } else {
+          throw new Error('No suitable database query method found');
+        }
+      }
+    } catch (error) {
+      ztoolkit.log(`Error querying SQL: ${sql}\nError: ${error}`);
       throw error;
     }
   }
@@ -65,7 +239,7 @@ export class VectorStore {
     }
 
     // 创建文献表
-    await this.db.execute(`
+    await this.executeSQL(`
       CREATE TABLE IF NOT EXISTS literature_tracker_literatures (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         literature_id INTEGER UNIQUE,
@@ -83,7 +257,7 @@ export class VectorStore {
     `);
 
     // 创建向量表
-    await this.db.execute(`
+    await this.executeSQL(`
       CREATE TABLE IF NOT EXISTS literature_tracker_vectors (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         literature_id INTEGER UNIQUE,
@@ -93,7 +267,7 @@ export class VectorStore {
     `);
 
     // 创建配置表
-    await this.db.execute(`
+    await this.executeSQL(`
       CREATE TABLE IF NOT EXISTS literature_tracker_config (
         key TEXT PRIMARY KEY,
         value TEXT,
@@ -102,7 +276,7 @@ export class VectorStore {
     `);
 
     // 创建用户画像表
-    await this.db.execute(`
+    await this.executeSQL(`
       CREATE TABLE IF NOT EXISTS literature_tracker_user_profiles (
         id TEXT PRIMARY KEY,
         interest_vector TEXT,  -- 兴趣中心向量以JSON字符串形式存储
@@ -116,7 +290,7 @@ export class VectorStore {
     `);
 
     // 创建索引
-    await this.db.execute(`
+    await this.executeSQL(`
       CREATE INDEX IF NOT EXISTS idx_literatures_literature_id ON literature_tracker_literatures(literature_id);
       CREATE INDEX IF NOT EXISTS idx_vectors_literature_id ON literature_tracker_vectors(literature_id);
       CREATE INDEX IF NOT EXISTS idx_user_profiles_id ON literature_tracker_user_profiles(id);
@@ -142,7 +316,7 @@ export class VectorStore {
     });
 
     // 插入文献数据
-    await this.db.execute(
+    await this.executeSQL(
       `
       INSERT OR REPLACE INTO literature_tracker_literatures (
         literature_id, title, abstract, authors, publication_title, date, doi, url, tags, metadata
@@ -163,7 +337,7 @@ export class VectorStore {
     );
 
     // 插入向量数据
-    await this.db.execute(
+    await this.executeSQL(
       `
       INSERT OR REPLACE INTO literature_tracker_vectors (literature_id, vector, created_at)
       VALUES (?, ?, CURRENT_TIMESTAMP)
@@ -185,15 +359,15 @@ export class VectorStore {
     }
 
     // 开始事务
-    await this.db.execute('BEGIN TRANSACTION');
+    await this.executeSQL('BEGIN TRANSACTION');
 
     try {
       for (const item of items) {
         await this.insertVector(item.literature, item.vector);
       }
-      await this.db.execute('COMMIT');
+      await this.executeSQL('COMMIT');
     } catch (error) {
-      await this.db.execute('ROLLBACK');
+      await this.executeSQL('ROLLBACK');
       throw error;
     }
   }
@@ -218,7 +392,7 @@ export class VectorStore {
     }
 
     // 获取所有向量
-    const vectors = await this.db.queryAsync(
+    const vectors = await this.querySQL(
       `
       SELECT 
         v.literature_id,
@@ -297,7 +471,7 @@ export class VectorStore {
       throw new Error('Database not initialized');
     }
 
-    const row = await this.db.queryAsync(
+    const row = await this.querySQL(
       `
       SELECT 
         v.id,
@@ -336,12 +510,12 @@ export class VectorStore {
       throw new Error('Database not initialized');
     }
 
-    await this.db.execute(
+    await this.executeSQL(
       'DELETE FROM literature_tracker_vectors WHERE literature_id = ?',
       [literatureId]
     );
 
-    await this.db.execute(
+    await this.executeSQL(
       'DELETE FROM literature_tracker_literatures WHERE literature_id = ?',
       [literatureId]
     );
@@ -355,8 +529,8 @@ export class VectorStore {
       throw new Error('Database not initialized');
     }
 
-    await this.db.execute('DELETE FROM literature_tracker_vectors');
-    await this.db.execute('DELETE FROM literature_tracker_literatures');
+    await this.executeSQL('DELETE FROM literature_tracker_vectors');
+    await this.executeSQL('DELETE FROM literature_tracker_literatures');
   }
 
   /**
@@ -370,11 +544,11 @@ export class VectorStore {
       throw new Error('Database not initialized');
     }
 
-    const vectorCount = await this.db.queryAsync(
+    const vectorCount = await this.querySQL(
       'SELECT COUNT(*) as count FROM literature_tracker_vectors'
     );
 
-    const literatureCount = await this.db.queryAsync(
+    const literatureCount = await this.querySQL(
       'SELECT COUNT(*) as count FROM literature_tracker_literatures'
     );
 
@@ -394,7 +568,7 @@ export class VectorStore {
       throw new Error('Database not initialized');
     }
 
-    await this.db.execute(
+    await this.executeSQL(
       `
       INSERT OR REPLACE INTO literature_tracker_config (key, value, updated_at)
       VALUES (?, ?, CURRENT_TIMESTAMP)
@@ -413,7 +587,7 @@ export class VectorStore {
       throw new Error('Database not initialized');
     }
 
-    const row = await this.db.queryAsync(
+    const row = await this.querySQL(
       'SELECT value FROM literature_tracker_config WHERE key = ?',
       [key]
     );
@@ -438,7 +612,7 @@ export class VectorStore {
       throw new Error('Database not initialized');
     }
 
-    await this.db.execute(
+    await this.executeSQL(
       `
       INSERT OR REPLACE INTO literature_tracker_user_profiles (
         id, interest_vector, core_themes, keywords, interest_distribution, last_updated, literature_items
@@ -465,7 +639,7 @@ export class VectorStore {
       throw new Error('Database not initialized');
     }
 
-    const row = await this.db.queryAsync(
+    const row = await this.querySQL(
       `
       SELECT 
         id, 
@@ -507,7 +681,7 @@ export class VectorStore {
       throw new Error('Database not initialized');
     }
 
-    await this.db.execute(
+    await this.executeSQL(
       'DELETE FROM literature_tracker_user_profiles WHERE id = ?',
       [userId]
     );
@@ -521,7 +695,7 @@ export class VectorStore {
       throw new Error('Database not initialized');
     }
 
-    await this.db.execute('DELETE FROM literature_tracker_user_profiles');
+    await this.executeSQL('DELETE FROM literature_tracker_user_profiles');
   }
 
   /**
@@ -532,7 +706,7 @@ export class VectorStore {
       throw new Error('Database not initialized');
     }
 
-    const rows = await this.db.queryAsync(
+    const rows = await this.querySQL(
       `
       SELECT 
         id, 
@@ -555,6 +729,21 @@ export class VectorStore {
       lastUpdated: row.last_updated,
       literatureItems: row.literature_items ? JSON.parse(row.literature_items) : undefined
     }));
+  }
+
+  /**
+   * 获取最后推送日期
+   */
+  public async getLastPushDate(): Promise<Date | null> {
+    const lastPush = await this.getConfig("lastPushDate", null);
+    return lastPush ? new Date(lastPush) : null;
+  }
+
+  /**
+   * 设置最后推送日期
+   */
+  public async setLastPushDate(date: Date): Promise<void> {
+    await this.setConfig("lastPushDate", date.toISOString());
   }
 
   /**

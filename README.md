@@ -16,6 +16,7 @@
 8. **选中文献向量生成**：支持在Zotero中选择文献并生成向量
 9. **向量存储与管理**：使用SQLite数据库存储和管理文献向量
 10. **用户画像管理**：支持构建、更新（暂时未使用增量更新，后续再改）和查看用户画像
+11. **Python文献获取**：使用Python脚本获取文献，提供更稳定的文献获取能力
 
 ## 技术架构
 
@@ -27,13 +28,36 @@
 
 ## 安装方法
 
+### 1. 安装Zotero插件
+
 1. 下载最新的插件XPI文件
 2. 在Zotero中，点击「工具」→「插件」
 3. 点击右上角的齿轮图标，选择「从文件安装插件...」
 4. 选择下载的XPI文件，点击「打开」
 5. 重启Zotero以完成安装
 
+### 2. 安装Python服务器
+
+1. 确保已安装Python 3.8+
+2. 运行启动脚本：
+   - Windows: 双击 `start-server.bat`
+   - macOS/Linux: 运行 `python python/literature_server.py`
+3. 启动脚本会自动安装所需依赖并启动服务器
+4. 服务器将在 `http://localhost:5000` 上运行
+
+### 3. 验证服务器
+
+打开浏览器访问 `http://localhost:5000/health`，如果返回 `{"status":"ok"}` 则表示服务器运行正常
+
 ## 使用方法
+
+### 0. 启动Python服务器
+
+在使用插件前，请确保Python服务器已启动：
+
+1. 运行 `start-server.bat`（Windows）或 `python python/literature_server.py`（macOS/Linux）
+2. 服务器启动后会显示「Running on http://localhost:5000」
+3. 保持服务器运行状态
 
 ### 1. 配置设置
 

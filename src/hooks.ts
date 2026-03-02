@@ -107,6 +107,15 @@ function addMenuItems(win: any) {
       addon.hooks.updateUserProfile();
     });
 
+    // 创建主动推送菜单项
+    const pushPapersMenuItem = win.document.createXULElement("menuitem");
+    pushPapersMenuItem.id = "literature-tracker-push-papers";
+    pushPapersMenuItem.setAttribute("label", "Push Today's Papers");
+    pushPapersMenuItem.setAttribute("accesskey", "P");
+    pushPapersMenuItem.addEventListener("command", () => {
+      addon.hooks.pushTodayPapers();
+    });
+
     // 创建追踪文献菜单项
     const trackLiteratureMenuItem = win.document.createXULElement("menuitem");
     trackLiteratureMenuItem.id = "literature-tracker-track-literature";
@@ -129,6 +138,7 @@ function addMenuItems(win: any) {
     subMenu.appendChild(generateVectorMenuItem);
     subMenu.appendChild(buildProfileMenuItem);
     subMenu.appendChild(updateProfileMenuItem);
+    subMenu.appendChild(pushPapersMenuItem);
     subMenu.appendChild(trackLiteratureMenuItem);
     subMenu.appendChild(settingsMenuItem);
     mainMenuItem.appendChild(subMenu);
@@ -423,6 +433,57 @@ async function updateUserProfile() {
   }
 }
 
+/**
+ * 主动推送今日文献
+ */
+async function pushTodayPapers() {
+  try {
+    const popupWin = new ztoolkit.ProgressWindow(addon.data.config.addonName, {
+      closeOnClick: true,
+      closeTime: -1,
+    })
+      .createLine({
+        text: "开始推送今日文献...",
+        type: "default",
+        progress: 0,
+      })
+      .show();
+
+    await Zotero.Promise.delay(500);
+
+    // 调用插件的方法推送今日文献
+    const pushedCount = await addon.fetchAndPushTodayPapers();
+
+    await Zotero.Promise.delay(500);
+
+    if (pushedCount > 0) {
+      popupWin.changeLine({
+        progress: 100,
+        text: `今日文献推送完成！共推送 ${pushedCount} 篇相关文献`,
+      });
+    } else {
+      // 不显示完成通知，因为 fetchAndPushTodayPapers 已经显示了具体的通知
+      popupWin.close();
+      return;
+    }
+
+    popupWin.startCloseTimer(3000);
+  } catch (error) {
+    ztoolkit.log(`Error pushing today's papers: ${error}`);
+    new ztoolkit.ProgressWindow(addon.data.config.addonName, {
+      closeOnClick: true,
+      closeTime: -1,
+    })
+      .createLine({
+        text: `推送失败: ${error}`,
+        type: "error",
+        progress: 100,
+      })
+      .show()
+      .startCloseTimer(3000);
+  }
+}
+
 // Add your hooks here. For element click, etc.
 // Keep in mind hooks only do dispatch. Don't add code that does real jobs in hooks.
 // Otherwise the code would be hard to read and maintain.
@@ -440,4 +501,5 @@ export default {
   generateSelectedLiteratureVectors,
   buildUserProfile,
   updateUserProfile,
+  pushTodayPapers,
 }; 

@@ -135,6 +135,29 @@ export class LiteratureTrackingService {
     return this.arxivCrawler.getPaperById(arxivId);
   }
 
+  async fetchTodayPapers(): Promise<ArxivPaper[]> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // 获取最近7天的文献（增加范围，确保能获取到文献）
+    const papers = await this.fetchRecentPapers(7);
+
+    // 过滤出今天及最近的文献
+    const recentPapers = papers.filter(paper => {
+      const paperDate = new Date(paper.published);
+      return paperDate >= today;
+    });
+
+    // 如果今天没有文献，返回最近7天的文献
+    if (recentPapers.length === 0) {
+      this.zotero.debug(`No papers published today, returning recent papers`);
+      return papers.slice(0, 50); // 返回前50篇最近的文献
+    }
+
+    this.zotero.debug(`Found ${recentPapers.length} papers published today`);
+    return recentPapers;
+  }
+
   updateConfig(config: Partial<TrackingConfig>): void {
     this.trackingConfig = { ...this.trackingConfig, ...config };
     this.saveTrackingConfig(this.trackingConfig);
