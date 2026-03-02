@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:html="http://www.w3.org/1999/xhtml"
+      xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+      xmlns:svg="http://www.w3.org/2000/svg">
+<head>
+  <meta charset="UTF-8" />
+  <title>Recommended Papers</title>
+  <link rel="stylesheet" href="chrome://zotero/skin/zotero.css" />
+  <link rel="stylesheet" href="chrome://literature-tracker/skin/recommended-papers.css" />
+  <script type="application/javascript" src="chrome://literature-tracker/content/recommended-papers.js"></script>
+</head>
+<body>
+  <xul:vbox id="recommended-papers-window" flex="1">
+    <xul:hbox class="zotero-header">
+      <xul:label class="zotero-header-title" value="Recommended Papers" />
+      <xul:spacer flex="1" />
+      <xul:button label="Close" oncommand="window.close();" />
+    </xul:hbox>
+    
+    <xul:hbox flex="1" class="zotero-content">
+      <xul:vbox flex="1" class="zotero-pane-content">
+        <xul:hbox class="zotero-pane-header">
+          <xul:label class="zotero-pane-title" value="Literature Recommendations" />
+        </xul:hbox>
+        
+        <xul:vbox id="papers-container" flex="1" class="papers-list">
+          <!-- Papers will be inserted here -->
+        </xul:vbox>
+      </xul:vbox>
+    </xul:hbox>
+  </xul:vbox>
+</body>
+</html>

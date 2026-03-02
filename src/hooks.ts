@@ -233,6 +233,19 @@ function openSettingsWindow() {
 }
 
 /**
+ * 显示推荐文献窗口
+ */
+function showRecommendedPapers() {
+  ztoolkit.log("Showing recommended papers window...");
+  try {
+    // 调用插件的方法显示推荐文献
+    addon.showRecommendedPapers();
+  } catch (error) {
+    ztoolkit.log(`Error showing recommended papers: ${error}`);
+  }
+}
+
+/**
  * 触发文献追踪
  */
 async function triggerLiteratureTracking() {

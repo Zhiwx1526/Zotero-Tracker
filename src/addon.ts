@@ -156,29 +156,7 @@ class Addon {
     this.data.shortcutKey = shortcutKey as string;
   }
 
-  /**
-   * 注册快捷键
-   */
-  private registerShortcut(): void {
-    if (!this.data.shortcutKey) return;
 
-    const zotero = this.data.ztoolkit.getGlobal("Zotero");
-    const overlayManager = (zotero as any).OverlayManager;
-
-    if (overlayManager) {
-      // 注册快捷键
-      overlayManager.add({
-        "": [{
-          tag: "key",
-          attributes: {
-            id: "literature-tracker-shortcut",
-            key: this.data.shortcutKey,
-            oncommand: "Zotero.LiteratureTracker.hooks.onShortcutKey()"
-          }
-        }]
-      });
-    }
-  }
 
   /**
    * 生成选中文献的向量
@@ -626,28 +604,105 @@ class Addon {
       return;
     }
 
-    // 创建通知
-    const notification = new ztoolkit.ProgressWindow(this.data.config.addonName, {
-      closeOnClick: true,
-      closeTime: -1,
-    });
+    // 显示推荐文献窗口
+    this.showRecommendedPapersWindow(papers);
+  }
 
-    notification.createLine({
-      text: `发现 ${papers.length} 篇您可能感兴趣的新文献`,
-      type: "default",
-      progress: 100,
-    });
+  /**
+   * 显示推荐文献窗口
+   */
+  public showRecommendedPapersWindow(papers: any[]) {
+    try {
+      const zotero = this.data.ztoolkit.getGlobal("Zotero");
+      const win = zotero.getMainWindow().open(
+        "chrome://literature-tracker/content/recommended-papers.xhtml",
+        "literature-tracker-recommended-papers",
+        "chrome,centerscreen,width=800,height=600,resizable=yes"
+      );
 
-    // 添加每篇文献的信息
-    for (const paper of papers) {
-      notification.createLine({
-        text: `${paper.title} - ${paper.authors.join(", ")}`,
-        type: "default",
-        progress: 100,
+      // 传递文献数据到窗口
+      if (win) {
+        win.recommendedPapers = papers;
+        ztoolkit.log("Recommended papers window opened successfully");
+      } else {
+        ztoolkit.log("Failed to open recommended papers window");
+      }
+    } catch (error) {
+      ztoolkit.log(`Error opening recommended papers window: ${error}`);
+    }
+  }
+
+  /**
+   * 注册快捷键
+   */
+  private registerShortcut(): void {
+    if (!this.data.shortcutKey) return;
+
+    const zotero = this.data.ztoolkit.getGlobal("Zotero");
+    const overlayManager = (zotero as any).OverlayManager;
+
+    if (overlayManager) {
+      // 注册主快捷键
+      overlayManager.add({
+        "": [{
+          tag: "key",
+          attributes: {
+            id: "literature-tracker-shortcut",
+            key: this.data.shortcutKey,
+            oncommand: "Zotero.LiteratureTracker.hooks.onShortcutKey()"
+          }
+        },
+        // 注册9快捷键用于显示推荐文献窗口
+        {
+          tag: "key",
+          attributes: {
+            id: "literature-tracker-recommended-papers-key",
+            key: "9",
+            oncommand: "Zotero.LiteratureTracker.hooks.showRecommendedPapers()"
+          }
+        }]
       });
     }
+  }
 
-    notification.show().startCloseTimer(10000);
+  /**
+   * 显示推荐文献
+   */
+  public async showRecommendedPapers() {
+    try {
+      ztoolkit.log("Showing recommended papers...");
+
+      // 检查必要的组件是否初始化
+      if (!this.data.literatureTrackingService || !this.data.vectorStore || !this.data.userProfileManager || !this.data.vectorGenerator || !this.data.literatureReader) {
+        ztoolkit.log("Required components not initialized");
+        return;
+      }
+
+      // 获取今日文献
+      const papers = await this.data.literatureTrackingService.fetchTodayPapers();
+      if (papers.length === 0) {
+        ztoolkit.log("No papers found");
+        return;
+      }
+
+      // 基于关键词初步筛选
+      const keywordFilteredPapers = await this.filterPapersByKeywords(papers);
+      if (keywordFilteredPapers.length === 0) {
+        ztoolkit.log("No papers matched keywords");
+        return;
+      }
+
+      // 计算相关度
+      const relevanceResults = await this.calculateRelevance(keywordFilteredPapers);
+
+      // 筛选相关文献
+      const relevantPapers = await this.filterRelevantPapers(relevanceResults);
+
+      // 显示推荐文献窗口
+      this.showRecommendedPapersWindow(relevantPapers);
+    } catch (error) {
+      ztoolkit.log(`Error showing recommended papers: ${error}`);
+    }
   }
 
   /**
