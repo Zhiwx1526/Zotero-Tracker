@@ -11,6 +11,8 @@ declare namespace _ZoteroTypes {
       "apiProvider": string;
       "trackArxiv": boolean;
       "trackPubmed": boolean;
+      "profileMode": string;
+      "pythonServerStartCommand": string;
       "relevanceThreshold": number;
       "shortcutKey": string;
     };

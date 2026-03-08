@@ -40,38 +40,22 @@ export class VectorStore {
 
   /**
    * 初始化数据库
+   * 向量/文献表使用 Zotero.DB；用户画像改用 JSON 文件存储（bootstrap 读写），避免 SQLite 兼容问题
    */
   public async initialize(): Promise<void> {
     try {
       const zotero = ztoolkit.getGlobal("Zotero");
-
-      // 尝试使用Zotero.DB
-      this.db = zotero.DB;
-
-      // 即使Zotero.DB不可用，我们也可以通过Zotero.SQLite直接操作数据库文件
-      // 所以不需要在这里抛出错误，而是在实际执行SQL时处理
-
-      // 确保数据库文件存在
-      if (zotero.SQLite) {
-        // 尝试打开数据库文件以确保它存在
-        const dbPath = this.dbPath;
-        await new Promise<void>((resolve, reject) => {
-          zotero.SQLite.DB.execute(dbPath, 'PRAGMA journal_mode = WAL;', [], (success: boolean) => {
-            if (success) {
-              resolve();
-            } else {
-              reject(new Error('Failed to initialize database file'));
-            }
-          });
-        });
-      }
-
-      // 创建表结构
+      this.db = (zotero as any).DB ?? null;
       await this.createTables();
     } catch (error) {
       ztoolkit.log(`Error initializing vector store: ${error}`);
       throw error;
     }
+  }
+
+  /** 用户画像 JSON 文件路径（与 dbPath 同目录，避免依赖 SQLite） */
+  private getProfileFilePath(): string {
+    return this.dbPath.replace(/literature-tracker\.sqlite$/i, "literature-tracker-profile.json");
   }
 
   /**
@@ -234,10 +218,7 @@ export class VectorStore {
    * 创建设表结构
    */
   private async createTables(): Promise<void> {
-    if (!this.db) {
-      throw new Error('Database not initialized');
-    }
-
+    if (!this.db) return;
     // 创建文献表
     await this.executeSQL(`
       CREATE TABLE IF NOT EXISTS literature_tracker_literatures (
@@ -604,20 +585,21 @@ export class VectorStore {
   }
 
   /**
-   * 插入用户画像
-   * @param profile 用户画像对象
+   * 插入用户画像（优先写入 JSON 文件，由 bootstrap 读写，避免 Zotero 环境 SQLite 不可用）
    */
   public async insertUserProfile(profile: UserProfile): Promise<void> {
-    if (!this.db) {
-      throw new Error('Database not initialized');
+    const zotero = ztoolkit.getGlobal("Zotero") as any;
+    const writeFile = zotero?.LiteratureTrackerWriteTextFile;
+    const path = this.getProfileFilePath();
+    if (typeof writeFile === "function") {
+      const ok = writeFile(path, JSON.stringify(profile));
+      if (ok) return;
     }
-
+    if (!this.db) throw new Error("Database not initialized");
     await this.executeSQL(
-      `
-      INSERT OR REPLACE INTO literature_tracker_user_profiles (
+      `INSERT OR REPLACE INTO literature_tracker_user_profiles (
         id, interest_vector, core_themes, keywords, interest_distribution, last_updated, literature_items
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-      `,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
         profile.id,
         JSON.stringify(profile.interestVector),
@@ -625,42 +607,37 @@ export class VectorStore {
         JSON.stringify(profile.keywords),
         JSON.stringify(profile.interestDistribution),
         profile.lastUpdated,
-        JSON.stringify(profile.literatureItems || [])
+        JSON.stringify(profile.literatureItems || []),
       ]
     );
   }
 
   /**
-   * 获取用户画像
-   * @param userId 用户ID
+   * 获取用户画像（优先从 JSON 文件读取）
    */
   public async getUserProfile(userId: string): Promise<UserProfile | null> {
-    if (!this.db) {
-      throw new Error('Database not initialized');
+    const zotero = ztoolkit.getGlobal("Zotero") as any;
+    const readFile = zotero?.LiteratureTrackerReadTextFile;
+    const path = this.getProfileFilePath();
+    if (typeof readFile === "function") {
+      const raw = readFile(path);
+      if (raw != null && raw !== "") {
+        try {
+          const profile = JSON.parse(raw) as UserProfile;
+          if (profile && profile.id != null) return profile;
+        } catch (_) {
+          ztoolkit.log("getUserProfile: failed to parse profile JSON");
+        }
+      }
     }
-
+    if (!this.db) return null;
     const row = await this.querySQL(
-      `
-      SELECT 
-        id, 
-        interest_vector, 
-        core_themes, 
-        keywords, 
-        interest_distribution, 
-        last_updated, 
-        literature_items
-      FROM literature_tracker_user_profiles
-      WHERE id = ?
-      `,
+      `SELECT id, interest_vector, core_themes, keywords, interest_distribution, last_updated, literature_items
+       FROM literature_tracker_user_profiles WHERE id = ?`,
       [userId]
     );
-
-    if (!row || row.length === 0) {
-      return null;
-    }
-
+    if (!row || row.length === 0) return null;
     const data = row[0];
-
     return {
       id: data.id,
       interestVector: JSON.parse(data.interest_vector),
@@ -668,7 +645,7 @@ export class VectorStore {
       keywords: JSON.parse(data.keywords),
       interestDistribution: JSON.parse(data.interest_distribution),
       lastUpdated: data.last_updated,
-      literatureItems: data.literature_items ? JSON.parse(data.literature_items) : undefined
+      literatureItems: data.literature_items ? JSON.parse(data.literature_items) : undefined,
     };
   }
 

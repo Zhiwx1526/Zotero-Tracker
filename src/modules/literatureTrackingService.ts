@@ -20,11 +20,11 @@ export class LiteratureTrackingService {
   private loadTrackingConfig(): TrackingConfig {
     try {
       const prefs = this.zotero.Prefs;
-      const categoriesVal = prefs.get('extensions.literature-tracker.categories', true) as unknown;
-      const keywordsVal = prefs.get('extensions.literature-tracker.keywords', true) as unknown;
-      const authorsVal = prefs.get('extensions.literature-tracker.authors', true) as unknown;
-      const maxResultsVal = prefs.get('extensions.literature-tracker.maxResults', true) as unknown;
-      const relevanceThresholdVal = prefs.get('extensions.literature-tracker.relevanceThreshold', true) as unknown;
+      const categoriesVal = prefs.get('extensions.zotero.literature-tracker.categories', true) as unknown;
+      const keywordsVal = prefs.get('extensions.zotero.literature-tracker.keywords', true) as unknown;
+      const authorsVal = prefs.get('extensions.zotero.literature-tracker.authors', true) as unknown;
+      const maxResultsVal = prefs.get('extensions.zotero.literature-tracker.maxResults', true) as unknown;
+      const relevanceThresholdVal = prefs.get('extensions.zotero.literature-tracker.relevanceThreshold', true) as unknown;
 
       const categories = (Array.isArray(categoriesVal) ? categoriesVal : ['cs.AI', 'cs.LG']) as string[];
       const keywords = (Array.isArray(keywordsVal) ? keywordsVal : []) as string[];
@@ -54,11 +54,11 @@ export class LiteratureTrackingService {
   private saveTrackingConfig(config: TrackingConfig): void {
     try {
       const prefs = this.zotero.Prefs;
-      prefs.set('extensions.literature-tracker.categories', config.categories as any, true);
-      prefs.set('extensions.literature-tracker.keywords', config.keywords as any, true);
-      prefs.set('extensions.literature-tracker.authors', config.authors as any, true);
-      prefs.set('extensions.literature-tracker.maxResults', config.maxResults, true);
-      prefs.set('extensions.literature-tracker.relevanceThreshold', config.relevanceThreshold, true);
+      prefs.set('extensions.zotero.literature-tracker.categories', config.categories as any, true);
+      prefs.set('extensions.zotero.literature-tracker.keywords', config.keywords as any, true);
+      prefs.set('extensions.zotero.literature-tracker.authors', config.authors as any, true);
+      prefs.set('extensions.zotero.literature-tracker.maxResults', config.maxResults, true);
+      prefs.set('extensions.zotero.literature-tracker.relevanceThreshold', config.relevanceThreshold, true);
     } catch (error) {
       this.zotero.debug(`Error saving tracking config: ${error}`);
     }

@@ -171,15 +171,21 @@ export class UserProfileManager {
         interestVector = this.calculateWeightedAverage(vectors, weights);
       }
 
-      // 识别核心兴趣主题
-      const coreThemes: Array<{ theme: string; weight: number }> = [];
+      // 识别核心兴趣主题：按相似度排序取 top-k，避免与预定义主题向量空间不一致时得到 0 个
+      const themeScores: Array<{ theme: string; weight: number }> = [];
       for (const themeVector of this.themeVectors) {
+        if (interestVector.length !== themeVector.vector.length) continue;
         const similarity = this.cosineSimilarity(interestVector, themeVector.vector);
-        if (similarity > 0.3) { // 阈值可调整
-          coreThemes.push({ theme: themeVector.theme, weight: similarity });
-        }
+        themeScores.push({ theme: themeVector.theme, weight: similarity });
       }
-      coreThemes.sort((a, b) => b.weight - a.weight);
+      themeScores.sort((a, b) => b.weight - a.weight);
+      let coreThemes = themeScores
+        .slice(0, 5)
+        .filter(t => t.weight > 0.05)
+        .map(t => ({ theme: t.theme, weight: t.weight }));
+      if (coreThemes.length === 0 && themeScores.length > 0) {
+        coreThemes = [{ theme: themeScores[0].theme, weight: themeScores[0].weight }];
+      }
 
       // 提取高频关键词
       const keywords: Array<{ keyword: string; weight: number }> = Object.entries(allKeywords)
@@ -225,27 +231,6 @@ export class UserProfileManager {
   }
 
   /**
-   * 更新用户画像
-   */
-  async updateUserProfile(userID: string, newLiteratureItems: LiteratureItem[]): Promise<UserProfile> {
-    try {
-      // 获取现有画像
-      const existingProfile = await this.vectorStore.getUserProfile(userID);
-
-      // 获取所有文献（包括新添加的）
-      const existingLiterature = existingProfile?.literatureItems || [];
-      const allLiterature = [...existingLiterature, ...newLiteratureItems];
-
-      // 重新构建画像
-      return this.buildUserProfile(userID, allLiterature);
-    } catch (error) {
-      ztoolkit.log(`Error updating user profile: ${error}`);
-      // 当出现错误时，直接构建新的用户画像
-      return this.buildUserProfile(userID, newLiteratureItems);
-    }
-  }
-
-  /**
    * 获取用户画像
    */
   async getUserProfile(userID: string): Promise<UserProfile | null> {
@@ -262,5 +247,40 @@ export class UserProfileManager {
    */
   async rebuildUserProfile(userID: string, literatureItems: LiteratureItem[]): Promise<UserProfile> {
     return this.buildUserProfile(userID, literatureItems);
+  }
+
+  /**
+   * 仅基于关键词构建用户画像（无任何 API 调用，秒级完成）
+   * 推荐时将用关键词匹配 + 重叠度排序，不再使用向量
+   */
+  async buildUserProfileKeywordOnly(userID: string, literatureItems: LiteratureItem[]): Promise<UserProfile> {
+    const allKeywords: Record<string, number> = {};
+    for (const literature of literatureItems) {
+      const keywords = this.extractKeywords(literature);
+      for (const keyword of keywords) {
+        allKeywords[keyword] = (allKeywords[keyword] || 0) + 1;
+      }
+    }
+    const keywords = Object.entries(allKeywords)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 30)
+      .map(([keyword, count]) => ({ keyword, weight: count }));
+
+    const profile: UserProfile = {
+      id: userID,
+      interestVector: [], // 空表示纯关键词模式，推荐时用关键词打分
+      coreThemes: [],
+      keywords,
+      interestDistribution: {},
+      lastUpdated: Date.now(),
+      literatureItems,
+    };
+    await this.vectorStore.insertUserProfile(profile);
+    return profile;
+  }
+
+  /** 重建仅关键词画像（同上，无向量） */
+  async rebuildUserProfileKeywordOnly(userID: string, literatureItems: LiteratureItem[]): Promise<UserProfile> {
+    return this.buildUserProfileKeywordOnly(userID, literatureItems);
   }
 }

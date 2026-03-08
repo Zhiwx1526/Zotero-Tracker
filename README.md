@@ -1,184 +1,157 @@
-# 基于大模型的文献追踪与推送系统
+# Literature Tracker（文献追踪与推荐）
 
 ## 项目简介
 
-这是一个基于Zotero的插件，使用大模型技术实现文献的智能追踪与推送。插件能够从用户的Zotero文献库中构建兴趣画像，自动追踪相关网站的新文献，并将相关度高的文献推送给用户。
+基于 Zotero 的插件，使用大模型与关键词/向量技术实现文献的智能追踪与推荐。插件从用户文献库构建兴趣画像（关键词模式秒级完成），通过**仅由本地 Python 服务**获取 arXiv 新文献，按相关度筛选后推送，并支持调用大模型生成文献内容概括。**菜单与设置界面为中文**（如：文献追踪、构建用户画像、推送今日文献、设置等）。
 
 ## 核心功能
 
-1. **用户兴趣画像构建**：从Zotero读取用户文献库，使用预训练模型将文献转换为语义向量，构建用户兴趣画像
-2. **多网站文献追踪**：支持追踪arXiv和PubMed的新文献
-3. **引用追踪**：追踪用户已有文献的新增引用
-4. **智能筛选**：使用向量相似度计算+TF-IDF/TextRank算法筛选相关文献
-5. **文献概述生成**：调用大模型API生成文献概述
-6. **个性化推送**：相关度达到阈值的文献推送给用户
-7. **快捷键支持**：默认空格键触发，可配置
-8. **选中文献向量生成**：支持在Zotero中选择文献并生成向量
-9. **向量存储与管理**：使用SQLite数据库存储和管理文献向量
-10. **用户画像管理**：支持构建、更新（暂时未使用增量更新，后续再改）和查看用户画像
-11. **Python文献获取**：使用Python脚本获取文献，提供更稳定的文献获取能力
+1. **用户兴趣画像**：支持两种模式——**关键词模式**（默认，无 API、秒级构建）与**向量模式**（需 API、更准）
+2. **文献检索**：**仅使用本地 Python 服务**（localhost:5000），不使用默认/第三方 API；使用前自动检查服务，可配置自动启动脚本
+3. **智能筛选**：关键词匹配 + 可选向量相似度，可调相关度阈值；**推荐时始终排除已在库文献**（按 DOI 与 arXiv ID 匹配）
+4. **推荐文献窗口**：独立窗口展示推荐列表，每篇可查看「内容概括」与在浏览器中打开摘要页；**放宽筛选条件时会在页面顶部显示说明**
+5. **大模型概括**：支持 **OpenAI** 与 **DeepSeek** 对话 API 生成 2～3 句中文概括
+6. **向量生成**：支持 **OpenAI Embeddings** 与 **DeepSeek 对话 API 生成向量**，用于用户画像（向量模式）与推荐相关度计算
+7. **设置与验证**：API 提供商、API 密钥、用户画像模式、文献服务自动启动路径、快捷键；支持「验证 API 密钥」
+8. **快捷键**：默认空格键触发文献追踪，可修改
 
 ## 技术架构
 
-- **前端**：XUL + Fluent（Zotero原生UI）
-- **后端**：Zotero Plugin API
-- **存储**：SQLite（向量和配置）
-- **AI模型**：支持OpenAI API和本地伪向量
-- **向量模型**：sentence-transformers/all-MiniLM-L6-v2（计划）
+- **前端**：XUL + 内嵌 HTML（Zotero 原生 UI）
+- **后端**：Zotero Plugin API（ztoolkit）
+- **存储**：用户画像为 JSON 文件（配置目录下 `literature-tracker-profile.json`，由 bootstrap 读写）；向量/文献表使用 Zotero.DB；Zotero Prefs 存 API 密钥、profileMode、pythonServerStartCommand 等
+- **文献来源**：仅本地 Python 服务（http://localhost:5000），无其他 API 回退
+- **大模型**：OpenAI / DeepSeek 对话 API（概括、验证）；向量为 OpenAI Embeddings 或 DeepSeek 对话生成向量（统一 1536 维）
 
 ## 安装方法
 
-### 1. 安装Zotero插件
+### 1. 安装 Zotero 插件
 
-1. 下载最新的插件XPI文件
-2. 在Zotero中，点击「工具」→「插件」
-3. 点击右上角的齿轮图标，选择「从文件安装插件...」
-4. 选择下载的XPI文件，点击「打开」
-5. 重启Zotero以完成安装
+1. 在项目根目录执行 `npm run build`，在 `.scaffold/build/` 下生成 `literature-tracker.xpi`
+2. 在 Zotero 中：**工具** → **插件** → 右上角齿轮 → **从文件安装插件...**
+3. 选择上述 XPI 文件，安装后重启 Zotero
 
-### 2. 安装Python服务器
+### 2. 安装并启动 Python 文献服务
 
-1. 确保已安装Python 3.8+
-2. 运行启动脚本：
-   - Windows: 双击 `start-server.bat`
-   - macOS/Linux: 运行 `python python/literature_server.py`
-3. 启动脚本会自动安装所需依赖并启动服务器
-4. 服务器将在 `http://localhost:5000` 上运行
+1. 需 Python 3.8+
+2. 启动方式：
+   - Windows：双击 `start-server.bat`
+   - macOS/Linux：`python python/literature_server.py`
+3. 服务在 `http://localhost:5000` 运行，依赖（Flask、arxiv 等）会自动安装
 
-### 3. 验证服务器
+**说明**：插件在执行「追踪文献」或「推送今日文献」前会**自动检查**该服务是否已启动；若未启动且已在设置中填写「文献服务自动启动」路径，会**尝试自动执行该脚本**（如 `start-server.bat` 的完整路径）。
 
-打开浏览器访问 `http://localhost:5000/health`，如果返回 `{"status":"ok"}` 则表示服务器运行正常
+### 3. 验证服务
+
+浏览器访问 `http://localhost:5000/health`，若返回 `{"status":"ok"}` 表示正常。
 
 ## 使用方法
 
-### 0. 启动Python服务器
+### 0. Python 文献服务
 
-在使用插件前，请确保Python服务器已启动：
-
-1. 运行 `start-server.bat`（Windows）或 `python python/literature_server.py`（macOS/Linux）
-2. 服务器启动后会显示「Running on http://localhost:5000」
-3. 保持服务器运行状态
+- **不配置自动启动**：使用前请手动运行 `start-server.bat` 或 `python python/literature_server.py`；若未运行，插件会提示「文献服务未启动」。
+- **配置自动启动**：在设置中填写「文献服务自动启动」为 `start-server.bat` 的**完整路径**并保存；之后若检测到服务未运行，插件会尝试执行该脚本后再继续。
 
 ### 1. 配置设置
 
-1. 点击「编辑」→「首选项」→「Literature Tracker」
-2. 在设置面板中：
-   - 输入API Key（支持OpenAI和Claude）
-   - 选择要追踪的网站（arXiv和PubMed）
-   - 调整相关度阈值滑块
-   - 设置快捷键（默认为空格键）
+1. **工具** → **文献追踪** → **设置**，或 **编辑** → **首选项** → 找到插件 **Literature Tracker** 进入设置
+2. **API 提供商**：DeepSeek（国内推荐）或 OpenAI
+3. **大模型 API 密钥**：用于文献概括与（若选向量模式）向量生成；保存后可用「验证 API 密钥」确认
+4. **用户画像模式**：**关键词**（推荐，秒级构建、无需 API）或 **向量**（更准、需 API）
+5. **文献服务自动启动**：可选，填 `start-server.bat` 的完整路径以便未启动时自动启动
+6. **快捷键**：默认空格，可改
+7. 点击 **保存设置**
 
-### 2. 手动触发文献追踪
+### 2. 触发文献追踪
 
-- 按下配置的快捷键（默认为空格键）
-- 或点击插件菜单中的「追踪文献」选项
+- 按设置的快捷键（默认空格），或 **工具** → **文献追踪** → **追踪文献**
 
-### 3. 生成选中文献的向量
+### 3. 查看推荐文献
 
-- 在Zotero中选择一个或多个文献
-- 点击「工具」→「Literature Tracker」→「Generate Vectors for Selected Items」
-- 插件会为选中文献生成向量并存储
+- **工具** → **文献追踪** → **推送今日文献**（打开推荐文献窗口）
+- 推荐列表**仅包含当前未在库中的文献**（按 DOI、arXiv ID 与库中条目比对）
+- 在推荐文献窗口中可查看每篇的「内容概括」、在浏览器中打开摘要页
+- 当因相关度或匹配数不足而**放宽筛选条件**时，页面顶部会显示黄色提示条说明
 
-### 4. 构建用户画像
+### 4. 用户画像
 
-- 点击「工具」→「Literature Tracker」→「Build User Profile」
-- 插件会分析用户文献库中的所有文献，生成兴趣中心向量、核心主题和关键词
-- 构建完成后会显示通知
+- **构建用户画像**：**工具** → **文献追踪** → **构建用户画像**
+- 关键词模式：仅从文献标题与摘要提取词频，无 API 调用，很快完成
+- 向量模式：会调用大模型生成向量，耗时较长
+- 新增文献后需再次执行「构建用户画像」以重建画像
+- **查看用户画像**：**工具** → **文献追踪** → **查看用户画像**，可确认当前画像模式、关键词数量与前 10 个关键词，用于验证是否成功使用
 
-### 5. 更新用户画像
+### 5. 如何验证用户画像是否成功使用
 
-- 当用户添加新文献后，点击「工具」→「Literature Tracker」→「Update User Profile」
-- 插件会重新分析所有文献，更新用户画像
-- 更新完成后会显示通知
-
-### 6. 查看推送的文献
-
-- 插件会在发现相关文献时弹出通知
-- 点击通知查看文献详情和概述
+1. **构建后看通知**：执行 **构建用户画像** 后，会弹出通知显示「已构建画像（关键词模式）：N 关键词」或「已构建画像：M 主题，N 关键词」，说明画像已写入。
+2. **菜单里查看摘要**：**工具** → **文献追踪** → **查看用户画像**。若尚未构建会提示先构建；若已构建会显示当前模式（关键词/向量）、关键词数量、最后更新时间，并在调试输出中打印前 10 个关键词，可确认画像内容。
+3. **看推荐是否在用**：执行 **推送今日文献** 打开推荐窗口时，若画像存在会先用画像中的关键词筛选文献，再按相关度排序。打开 **帮助** → **调试输出** → **查看输出**，筛选 `Literature Tracker`，可看到类似 `Filtered papers by keywords: X out of Y`，说明画像的关键词已参与筛选。
+4. **无画像时**：若未构建画像，推荐流程会跳过关键词筛选（或使用默认相关度），日志中会出现 "User profile not found" 或 "No keywords found in user profile"。
 
 ## 项目结构
 
 ```
-├── addon/             # 插件核心代码
-│   ├── content/       # 前端内容
-│   ├── locale/        # 本地化文件
-│   ├── bootstrap.js   # 插件引导
-│   ├── manifest.json  # 插件配置
-│   └── prefs.js       # 设置项
-├── src/               # TypeScript源代码
-│   ├── modules/       # 功能模块
-│   ├── utils/         # 工具函数
-│   ├── addon.ts       # 插件主类
-│   ├── hooks.ts       # 生命周期钩子
-│   └── index.ts       # 入口文件
-├── typings/           # TypeScript类型定义
-├── package.json       # 项目配置
-└── webpack.config.js  # Webpack配置
+├── addon/
+│   ├── content/
+│   │   ├── preferences.xhtml   # 设置页（API、画像模式、文献服务自动启动、快捷键等）
+│   │   └── recommended-papers.xhtml
+│   ├── bootstrap.js            # 含 Python 服务自动启动逻辑（tryStartPythonServer）
+│   ├── manifest.json
+│   └── prefs.js
+├── src/
+│   ├── addon.ts                # 主逻辑、ensurePythonServer、追踪与推荐入口
+│   ├── hooks.ts
+│   ├── index.ts
+│   ├── modules/
+│   │   ├── arxivCrawler.ts     # 仅请求 Python 服务，无默认 API
+│   │   ├── userProfile.ts      # 关键词/向量画像
+│   │   ├── vectorGenerator.ts  # OpenAI Embeddings / DeepSeek 对话向量
+│   │   └── ...
+│   └── utils/
+├── python/                     # 文献服务（Flask + arxiv）
+├── package.json
+└── .scaffold/build/
 ```
-
-## 模块说明
-
-### 1. literatureReader.ts
-- 从Zotero读取用户文献库
-- 支持获取所有文献、按集合获取、搜索文献等功能
-- 新增：支持获取选中文献的功能
-
-### 2. vectorStore.ts
-- 使用SQLite存储文献向量
-- 实现向量相似度计算和查询
-
-### 3. vectorGenerator.ts
-- 实现向量生成功能
-- 支持使用OpenAI API生成向量
-- 支持生成本地伪向量作为备选方案
-
-### 4. literatureTrackingService.ts
-- 实现文献追踪服务
-- 支持从arXiv获取最新文献
-- 管理追踪配置和偏好设置
-
-### 5. preferenceScript.ts
-- 处理设置面板的逻辑
-- 管理用户配置
-
-### 6. userProfile.ts
-- 实现用户画像构建功能
-- 支持兴趣中心向量计算
-- 支持核心兴趣主题识别
-- 支持关键词提取
-- 提供用户画像的构建、更新和获取方法
 
 ## 配置项说明
 
 | 配置项 | 说明 | 默认值 |
-|-------|------|--------|
-| openaiKey | OpenAI API密钥 | 空 |
-| claudeKey | Claude API密钥 | 空 |
-| trackArxiv | 是否追踪arXiv | true |
-| trackPubmed | 是否追踪PubMed | true |
+|--------|------|--------|
+| apiProvider | 大模型提供商：openai / deepseek | deepseek |
+| apiKey | 大模型 API 密钥（概括与向量） | 空 |
+| profileMode | 用户画像模式：keyword / vector | keyword |
+| pythonServerStartCommand | 文献服务未运行时自动启动脚本完整路径 | 空 |
 | relevanceThreshold | 相关度阈值 | 0.7 |
-| shortcutKey | 快捷键 | 空格 |
-| categories | 追踪的arXiv分类 | ['cs.AI', 'cs.LG'] |
-| keywords | 追踪的关键词 | [] |
-| authors | 追踪的作者 | [] |
-| maxResults | 最大结果数 | 50 |
+| shortcutKey | 触发追踪的快捷键 | 空格 |
+| trackArxiv / trackPubmed | 是否追踪对应站点 | true |
+| categories / keywords / authors | 追踪分类、关键词、作者 | 见代码 |
 
 ## 常见问题
 
-### 1. 插件无法初始化
-- 检查Zotero版本是否兼容（需要Zotero 6.0+）
-- 检查API Key是否正确
-- 查看Zotero日志获取详细错误信息
+### 1. 提示「文献服务未启动」
 
-### 2. 文献追踪不工作
-- 检查网络连接
-- 检查网站选择是否正确
-- 检查相关度阈值是否设置过高
+- 先手动运行 `start-server.bat` 或 `python python/literature_server.py`，确认 `http://localhost:5000/health` 返回 `{"status":"ok"}`
+- 若希望自动启动：在设置中填写「文献服务自动启动」为 `start-server.bat` 的**完整路径**并保存
 
-### 3. 大模型API调用失败
-- 检查API Key是否有效
-- 检查网络连接是否正常
-- 尝试切换到其他模型提供商
+### 2. 提示「未读取到 API 密钥」或「需要配置大模型」
+
+- 在设置中填写 API 密钥并点击 **保存设置**
+- 若仍提示，请重启 Zotero 或重新打开推荐文献窗口后再试
+
+### 3. 插件无法初始化
+
+- 确认 Zotero 版本（建议 6.0+）
+- 查看 **帮助 → 调试输出 → 查看输出** 中的 `[Literature Tracker]` 日志
+
+### 4. 文献追踪无结果
+
+- 确认 Python 文献服务已启动（检索**仅使用**该服务，无其他 API）
+- 检查相关度阈值、用户画像是否已构建
+
+### 5. 大模型 API 失败
+
+- 使用设置页「验证 API 密钥」检查密钥与网络
+- DeepSeek Key 请从 [platform.deepseek.com](https://platform.deepseek.com) 获取，注意无多余空格或换行
 
 ## 开发指南
 
@@ -188,78 +161,43 @@
 - npm 9+
 - Zotero 6.0+
 
-### 开发命令
+### 常用命令
 
 ```bash
-# 安装依赖
 npm install
-
-# 启动开发服务器
+npm run build    # 输出 .scaffold/build/literature-tracker.xpi
 npm start
-
-# 构建插件
-npm run build
-
-# 运行测试
-npm test
-
-# 代码检查
 npm run lint:check
+npm run lint:fix
 ```
 
-### 调试方法
+### 调试
 
-1. 在Zotero中，设置环境变量 `DEBUG=literature-tracker`
-2. 打开「帮助」→「调试输出」→「查看输出」
-3. 查看插件的日志信息
+- Zotero：**帮助** → **调试输出** → **查看输出**，筛选 `[Literature Tracker]`
 
-## TODO列表
+## TODO
 
-### 第一阶段（已完成）
-- [x] 使用Zotero Plugin Template初始化项目结构
-- [x] 创建设置面板UI，包含API Key输入、网站选择、阈值滑块、快捷键设置
-- [x] 实现Zotero文献读取模块（支持获取选中文献）
-- [x] 设计向量存储方案（SQLite）
-- [x] 实现插件主入口和初始化逻辑
-- [x] 实现文献向量生成功能（支持OpenAI API和本地伪向量）
-- [x] 实现网站爬虫（arXiv）
-- [x] 实现向量相似度计算和相关文献筛选
-- [x] 集成大模型API（OpenAI）
-- [x] 实现用户画像构建功能
-- [x] 创建项目文档和TODO列表
+### 已完成
 
-### 第二阶段
-- [ ] 实现引用追踪功能
-- [ ] 实现文献推送功能
-- [ ] 支持PubMed网站爬虫
-- [ ] 集成Claude API
+- [x] 设置页：API 提供商、API 密钥、用户画像模式、文献服务自动启动、快捷键、验证
+- [x] 推荐文献窗口、内容概括、在浏览器中打开摘要
+- [x] 用户画像：关键词模式（快）/ 向量模式；DeepSeek 对话 API 向量生成；画像存 JSON 文件（bootstrap 读写）
+- [x] 文献检索仅用 Python 服务；使用前自动检查服务、可选自动启动
+- [x] 移除默认/第三方文献 API，仅保留 localhost:5000
+- [x] 推荐时排除已在库文献（DOI + arXiv ID）；无结果时放宽相关度并保证有列表；放宽时在推荐页标注
 
-### 第三阶段
-- [ ] 添加更多可追踪的文献网站
-- [ ] 实现本地模型支持
-- [ ] 添加文献推荐可视化界面
-- [ ] 优化性能和用户体验
-- [ ] 编写详细的用户文档
+### 计划中
 
-## 贡献指南
+- [ ] 引用追踪
+- [ ] PubMed 集成
+- [ ] 更多可追踪站点
 
-欢迎提交Issue和Pull Request！
+## 贡献与许可
 
-### 提交规范
+欢迎提交 Issue 与 Pull Request，提交信息建议使用英文并遵循 Conventional Commits。
 
-- 提交消息使用英文
-- 遵循Conventional Commits规范
-- 代码风格使用项目的ESLint和Prettier配置
-
-## 许可证
-
-本项目采用AGPL-3.0许可证。详见[LICENSE](LICENSE)文件。
-
-## 联系方式
-
-- 项目地址：https://github.com/yourusername/literature-tracker
-- 问题反馈：https://github.com/yourusername/literature-tracker/issues
+本项目采用 **AGPL-3.0** 许可证，详见 [LICENSE](LICENSE)。
 
 ---
 
-**注意**：本插件需要联网使用，并且会调用第三方API（如OpenAI），请确保遵守相关服务的使用条款和隐私政策。
+**注意**：插件会调用大模型 API（OpenAI、DeepSeek），请遵守各服务的使用条款与隐私政策。文献数据仅通过本地 Python 服务获取，不经过其他第三方文献 API。

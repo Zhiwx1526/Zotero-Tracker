@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:html="http://www.w3.org/1999/xhtml">
 <head>
   <meta charset="UTF-8"/>
-  <title>Literature Tracker 设置</title>
+  <title>文献追踪 设置</title>
   <link rel="stylesheet" href="chrome://global/skin/"/>
   <link rel="stylesheet" href="chrome://zotero/skin/zotero.css"/>
   <style type="text/css">
@@ -23,7 +23,7 @@
 </head>
 <body>
   <div class="prefs-box">
-    <h1 class="prefs-title">Literature Tracker 设置</h1>
+    <h1 class="prefs-title">文献追踪 设置</h1>
 
     <div class="prefs-row">
       <label class="prefs-label" for="api-provider">API 提供商</label>
@@ -31,13 +31,22 @@
         <option value="deepseek">DeepSeek（国内推荐，api.deepseek.com）</option>
         <option value="openai">OpenAI（api.openai.com）</option>
       </select>
-      <div class="prefs-hint">DeepSeek 使用 DeepSeek API Key，国内网络更易访问。</div>
+      <div class="prefs-hint">DeepSeek 使用 DeepSeek API 密钥，国内网络更易访问。</div>
     </div>
 
     <div class="prefs-row">
-      <label class="prefs-label" for="api-key">大模型 API Key</label>
-      <input type="password" id="api-key" class="prefs-input" placeholder="DeepSeek 或 OpenAI 的 API Key"/>
+      <label class="prefs-label" for="api-key">大模型 API 密钥</label>
+      <input type="password" id="api-key" class="prefs-input" placeholder="DeepSeek 或 OpenAI 的 API 密钥"/>
       <div class="prefs-hint">用于文献概括与相关功能，请勿泄露。</div>
+    </div>
+
+    <div class="prefs-row">
+      <label class="prefs-label" for="profile-mode">用户画像模式</label>
+      <select id="profile-mode" class="prefs-input" style="width: 100%; max-width: 100%;">
+        <option value="keyword">关键词（推荐，秒级构建，无需 API）</option>
+        <option value="vector">向量（更准，需 API，构建较慢）</option>
+      </select>
+      <div class="prefs-hint">关键词模式从文献标题与摘要提取词频，推荐时按匹配度排序；向量模式需调用大模型生成向量。</div>
     </div>
 
     <div class="prefs-row">
@@ -47,7 +56,13 @@
     </div>
 
     <div class="prefs-row">
-      <button type="button" id="verify-api-key" class="btn-verify">验证 API Key</button>
+      <label class="prefs-label" for="python-server-start">文献服务自动启动</label>
+      <input type="text" id="python-server-start" class="prefs-input" placeholder="留空则不自动启动；填 start-server.bat 的完整路径可自动启动"/>
+      <div class="prefs-hint">检索文献前会检查 localhost:5000；若未运行且此处已填路径，将自动执行该脚本（如 D:\...\start-server.bat）。</div>
+    </div>
+
+    <div class="prefs-row">
+      <button type="button" id="verify-api-key" class="btn-verify">验证 API 密钥</button>
       <button type="button" id="save-prefs" class="btn-save">保存设置</button>
     </div>
   </div>
@@ -84,11 +99,16 @@
     document.addEventListener("DOMContentLoaded", function() {
       var apiProviderSelect = document.getElementById("api-provider");
       var apiKeyInput = document.getElementById("api-key");
+      var profileModeSelect = document.getElementById("profile-mode");
       var shortcutInput = document.getElementById("shortcut-key");
+      var pythonServerStartInput = document.getElementById("python-server-start");
       var saveBtn = document.getElementById("save-prefs");
       var verifyBtn = document.getElementById("verify-api-key");
 
       apiProviderSelect.value = getApiProviderPref();
+      var profileMode = getPref("profileMode", "keyword");
+      profileModeSelect.value = (profileMode === "vector" ? "vector" : "keyword");
+      pythonServerStartInput.value = getPref("pythonServerStartCommand", "") || "";
       var apiVal = getPref("apiKey", "") || "";
       if (!apiVal) {
         var legacy = getPref("openaiKey", "") || "";
@@ -100,7 +120,7 @@
       verifyBtn.addEventListener("click", function() {
         var key = (apiKeyInput.value || "").trim();
         if (!key) {
-          alert("请先输入 API Key 再验证。");
+          alert("请先输入 API 密钥再验证。");
           return;
         }
         verifyBtn.disabled = true;
@@ -108,17 +128,17 @@
         var addon = getAddon();
         if (!addon || typeof addon.verifyApiKey !== "function") {
           verifyBtn.disabled = false;
-          verifyBtn.textContent = "验证 API Key";
-          alert("无法连接插件，请从 Zotero 主窗口「工具 → Literature Tracker → Settings」打开本设置页后重试。");
+          verifyBtn.textContent = "验证 API 密钥";
+          alert("无法连接插件，请从 Zotero 主窗口「工具 → 文献追踪 → 设置」打开本设置页后重试。");
           return;
         }
         addon.verifyApiKey(key).then(function(r) {
           verifyBtn.disabled = false;
-          verifyBtn.textContent = "验证 API Key";
-          alert(r.ok ? "API Key 有效。" : ("验证失败：\n" + r.message));
+          verifyBtn.textContent = "验证 API 密钥";
+          alert(r.ok ? "API 密钥有效。" : ("验证失败：\n" + r.message));
         }).catch(function(e) {
           verifyBtn.disabled = false;
-          verifyBtn.textContent = "验证 API Key";
+          verifyBtn.textContent = "验证 API 密钥";
           alert("验证出错：" + (e &amp;&amp; e.message ? e.message : String(e)));
         });
       });
@@ -126,16 +146,20 @@
       saveBtn.addEventListener("click", function() {
         try {
           if (!Zotero || !Zotero.Prefs) {
-            alert("保存失败：Zotero 未就绪。请从 Zotero 主窗口「工具 → Literature Tracker → Settings」打开设置后再保存。");
+            alert("保存失败：Zotero 未就绪。请从 Zotero 主窗口「工具 → 文献追踪 → 设置」打开设置后再保存。");
             return;
           }
           var key = (apiKeyInput.value || "").trim();
           var shortcut = (shortcutInput.value || " ").trim() || " ";
           var provider = apiProviderSelect.value === "openai" ? "openai" : "deepseek";
+          var profileMode = profileModeSelect.value === "vector" ? "vector" : "keyword";
+          var pythonStart = (pythonServerStartInput.value || "").trim();
           setPref("apiProvider", provider);
           setPref("apiKey", key);
+          setPref("profileMode", profileMode);
           setPref("shortcutKey", shortcut);
-          alert("设置已保存。若修改了 API Key 或快捷键，建议重启 Zotero 后生效。");
+          setPref("pythonServerStartCommand", pythonStart);
+          alert("设置已保存。若修改了 API 密钥或快捷键，建议重启 Zotero 后生效。");
           window.close();
         } catch (e) {
           alert("保存失败：" + (e &amp;&amp; e.message ? e.message : String(e)));

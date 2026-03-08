@@ -73,12 +73,18 @@ class Addon {
         ztoolkit.log(`Error initializing vector store: ${error}`);
       }
 
-      // 初始化向量生成器
+      // 初始化向量生成器（支持 OpenAI Embeddings 与 DeepSeek 对话 API 生成向量）
       try {
         const zotero = this.data.ztoolkit.getGlobal("Zotero");
         const apiKey = zotero.Prefs.get("extensions.zotero.literature-tracker.apiKey", true) as string | null;
+        const apiProvider = String(zotero.Prefs.get("extensions.zotero.literature-tracker.apiProvider", true) || "deepseek").toLowerCase() as "openai" | "deepseek";
         this.data.vectorGenerator = new VectorGenerator(apiKey);
-        ztoolkit.log("Vector generator initialized");
+        this.data.vectorGenerator.setApiConfig(apiKey ?? null, undefined, undefined, {
+          apiProvider: apiProvider === "openai" ? "openai" : "deepseek",
+          chatApiUrl: apiProvider === "deepseek" ? "https://api.deepseek.com/v1/chat/completions" : undefined,
+          chatModel: apiProvider === "deepseek" ? "deepseek-chat" : undefined,
+        });
+        ztoolkit.log("Vector generator initialized (provider: " + apiProvider + ")");
       } catch (error) {
         ztoolkit.log(`Error initializing vector generator: ${error}`);
       }
@@ -159,59 +165,6 @@ class Addon {
 
 
   /**
-   * 生成选中文献的向量
-   */
-  public async generateSelectedLiteratureVectors(): Promise<void> {
-    try {
-      ztoolkit.log("Generating vectors for selected literature...");
-
-      // 检查必要的组件是否初始化
-      if (!this.data.literatureReader || !this.data.vectorGenerator || !this.data.vectorStore) {
-        ztoolkit.log("Required components not initialized");
-        return;
-      }
-
-      // 获取选中的文献
-      const selectedLiterature = await this.data.literatureReader.getSelectedLiterature();
-
-      if (selectedLiterature.length === 0) {
-        ztoolkit.log("No literature selected");
-        return;
-      }
-
-      ztoolkit.log(`Generating vectors for ${selectedLiterature.length} selected items`);
-
-      // 生成向量
-      const vectors = await this.data.vectorGenerator.generateVectors(selectedLiterature);
-
-      // 存储向量
-      for (const item of vectors) {
-        await this.data.vectorStore.insertVector(item.literature, item.vector);
-      }
-
-      ztoolkit.log(`Successfully generated and stored vectors for ${vectors.length} items`);
-
-      // 显示通知
-      const zotero = this.data.ztoolkit.getGlobal("Zotero");
-      // 使用 Zotero 的通知系统
-      new ztoolkit.ProgressWindow(addon.data.config.addonName, {
-        closeOnClick: true,
-        closeTime: -1,
-      })
-        .createLine({
-          text: `Successfully generated vectors for ${vectors.length} items`,
-          type: "default",
-          progress: 100,
-        })
-        .show()
-        .startCloseTimer(3000);
-
-    } catch (error) {
-      ztoolkit.log(`Error generating vectors for selected literature: ${error}`);
-    }
-  }
-
-  /**
    * 构建用户画像
    */
   public async buildUserProfile(): Promise<void> {
@@ -234,74 +187,31 @@ class Addon {
 
       ztoolkit.log(`Building profile based on ${allLiterature.length} literature items`);
 
-      // 构建用户画像
-      const userID = "default"; // 默认为默认用户
-      const profile = await this.data.userProfileManager.buildUserProfile(userID, allLiterature);
+      const userID = "default";
+      const zotero = this.data.ztoolkit.getGlobal("Zotero");
+      const profileMode = String((zotero as any).Prefs.get("extensions.zotero.literature-tracker.profileMode", true) || "keyword").toLowerCase();
+      const profile =
+        profileMode === "vector"
+          ? await this.data.userProfileManager.buildUserProfile(userID, allLiterature)
+          : await this.data.userProfileManager.buildUserProfileKeywordOnly(userID, allLiterature);
 
-      ztoolkit.log(`Successfully built user profile with ${profile.coreThemes.length} core themes and ${profile.keywords.length} keywords`);
+      ztoolkit.log(`Successfully built user profile (${profileMode}): ${profile.keywords.length} keywords`);
 
       // 显示通知
       new ztoolkit.ProgressWindow(addon.data.config.addonName, {
         closeOnClick: true,
         closeTime: -1,
       })
-        .createLine({
-          text: `Successfully built user profile with ${profile.coreThemes.length} core themes`,
-          type: "default",
-          progress: 100,
-        })
-        .show()
-        .startCloseTimer(3000);
+      .createLine({
+        text: profile.interestVector.length ? `已构建画像：${profile.coreThemes.length} 主题，${profile.keywords.length} 关键词` : `已构建画像（关键词模式）：${profile.keywords.length} 关键词`,
+        type: "default",
+        progress: 100,
+      })
+      .show()
+      .startCloseTimer(3000);
 
     } catch (error) {
       ztoolkit.log(`Error building user profile: ${error}`);
-    }
-  }
-
-  /**
-   * 更新用户画像
-   */
-  public async updateUserProfile(): Promise<void> {
-    try {
-      ztoolkit.log("Updating user profile...");
-
-      // 检查必要的组件是否初始化
-      if (!this.data.literatureReader || !this.data.userProfileManager) {
-        ztoolkit.log("Required components not initialized");
-        return;
-      }
-
-      // 获取所有文献
-      const allLiterature = await this.data.literatureReader.getAllLiterature();
-
-      if (allLiterature.length === 0) {
-        ztoolkit.log("No literature found in library");
-        return;
-      }
-
-      ztoolkit.log(`Updating profile based on ${allLiterature.length} literature items`);
-
-      // 更新用户画像
-      const userID = "default"; // 默认为默认用户
-      const profile = await this.data.userProfileManager.rebuildUserProfile(userID, allLiterature);
-
-      ztoolkit.log(`Successfully updated user profile with ${profile.coreThemes.length} core themes and ${profile.keywords.length} keywords`);
-
-      // 显示通知
-      new ztoolkit.ProgressWindow(addon.data.config.addonName, {
-        closeOnClick: true,
-        closeTime: -1,
-      })
-        .createLine({
-          text: `Successfully updated user profile with ${profile.coreThemes.length} core themes`,
-          type: "default",
-          progress: 100,
-        })
-        .show()
-        .startCloseTimer(3000);
-
-    } catch (error) {
-      ztoolkit.log(`Error updating user profile: ${error}`);
     }
   }
 
@@ -323,7 +233,7 @@ class Addon {
       const profile = await this.data.userProfileManager.getUserProfile(userID);
 
       if (profile) {
-        ztoolkit.log(`Retrieved user profile with ${profile.coreThemes.length} core themes`);
+        ztoolkit.log(`Retrieved user profile with ${profile.coreThemes?.length ?? 0} core themes, ${profile.keywords?.length ?? 0} keywords`);
       } else {
         ztoolkit.log("No user profile found");
       }
@@ -332,6 +242,42 @@ class Addon {
     } catch (error) {
       ztoolkit.log(`Error getting user profile: ${error}`);
       return null;
+    }
+  }
+
+  /**
+   * 显示当前用户画像摘要，用于验证画像是否已构建并被使用
+   */
+  public async showUserProfileSummary(): Promise<void> {
+    try {
+      const profile = await this.getUserProfile();
+      if (!profile) {
+        new ztoolkit.ProgressWindow(this.data.config.addonName, { closeOnClick: true, closeTime: -1 })
+          .createLine({
+            text: "尚未构建用户画像。请先执行「构建用户画像」",
+            type: "default",
+            progress: 100,
+          })
+          .show()
+          .startCloseTimer(5000);
+        return;
+      }
+      const mode = profile.interestVector?.length ? "向量" : "关键词";
+      const kwCount = profile.keywords?.length ?? 0;
+      const topKw = (profile.keywords || []).slice(0, 10).map((k: any) => k.keyword).join("、");
+      const updated = profile.lastUpdated ? new Date(profile.lastUpdated).toLocaleString() : "—";
+      const msg = `模式: ${mode} | 关键词数: ${kwCount} | 更新: ${updated}\n前 10 个关键词: ${topKw || "—"}`;
+      new ztoolkit.ProgressWindow(this.data.config.addonName, { closeOnClick: true, closeTime: -1 })
+        .createLine({
+          text: `用户画像已就绪（${mode}，${kwCount} 个关键词）。推荐文献时将按此画像筛选与排序。`,
+          type: "default",
+          progress: 100,
+        })
+        .show()
+        .startCloseTimer(6000);
+      ztoolkit.log(`[Profile Summary] ${msg}`);
+    } catch (e) {
+      ztoolkit.log(`showUserProfileSummary error: ${e}`);
     }
   }
 
@@ -380,18 +326,27 @@ class Addon {
       if (uninitializedComponents.length > 0) {
         const errorMessage = `插件组件未初始化: ${uninitializedComponents.join(", ")}，请重启Zotero`;
         ztoolkit.log(`Required components not initialized: ${uninitializedComponents.join(", ")}`);
-        // 显示通知
         new ztoolkit.ProgressWindow(this.data.config.addonName, {
           closeOnClick: true,
           closeTime: -1,
         })
+          .createLine({ text: errorMessage, type: "error", progress: 100 })
+          .show()
+          .startCloseTimer(5000);
+        return 0;
+      }
+
+      const serverOk = await this.ensurePythonServer();
+      if (!serverOk) {
+        ztoolkit.log("Python literature server not running");
+        new ztoolkit.ProgressWindow(this.data.config.addonName, { closeOnClick: true, closeTime: -1 })
           .createLine({
-            text: errorMessage,
+            text: "文献服务未启动。请在设置中配置自动启动脚本路径，或手动运行 start-server.bat",
             type: "error",
             progress: 100,
           })
           .show()
-          .startCloseTimer(5000);
+          .startCloseTimer(8000);
         return 0;
       }
 
@@ -416,35 +371,21 @@ class Addon {
         return 0;
       }
 
-      // 2. 基于关键词初步筛选
-      const keywordFilteredPapers = await this.filterPapersByKeywords(papers);
-      if (keywordFilteredPapers.length === 0) {
-        ztoolkit.log("No papers matched keywords");
-        // 显示通知
-        new ztoolkit.ProgressWindow(this.data.config.addonName, {
-          closeOnClick: true,
-          closeTime: -1,
-        })
-          .createLine({
-            text: "没有找到与您兴趣相关的文献",
-            type: "default",
-            progress: 100,
-          })
-          .show()
-          .startCloseTimer(5000);
-        // 更新推送状态
-        await this.data.vectorStore.setLastPushDate(new Date());
-        return 0;
+      // 2. 基于关键词初步筛选；若无匹配则用全部文献排序，保证有推荐
+      let candidatePapers = await this.filterPapersByKeywords(papers);
+      if (candidatePapers.length === 0) {
+        ztoolkit.log("No papers matched keywords, using all papers for ranking");
+        candidatePapers = papers;
       }
 
       // 3. 计算相关度
-      const relevanceResults = await this.calculateRelevance(keywordFilteredPapers);
+      const relevanceResults = await this.calculateRelevance(candidatePapers);
 
       // 4. 筛选相关文献
-      const relevantPapers = await this.filterRelevantPapers(relevanceResults);
+      const { papers: relevantPapers, relaxedLabel } = await this.filterRelevantPapers(relevanceResults);
 
       // 5. 推送文献
-      await this.pushPapers(relevantPapers);
+      await this.pushPapers(relevantPapers, relaxedLabel);
 
       // 6. 更新推送状态
       await this.data.vectorStore.setLastPushDate(new Date());
@@ -480,20 +421,20 @@ class Addon {
       return papers;
     }
 
-    // 提取高频关键词
+    // 提取高频关键词（权重>=1 即可，小库也能产生关键词；取前 15 个）
     const keywords = userProfile.keywords
-      .filter((item: any) => item.weight >= 3) // 只使用权重较高的关键词
+      .filter((item: any) => item.weight >= 1)
       .map((item: any) => item.keyword)
-      .slice(0, 10); // 取前10个关键词
+      .slice(0, 15);
 
     if (keywords.length === 0) {
       ztoolkit.log("No keywords found in user profile, skipping keyword filtering");
       return papers;
     }
 
-    // 筛选包含关键词的文献
+    // 筛选包含关键词的文献（arXiv 等接口返回 abstract，兼容 summary）
     const filteredPapers = papers.filter((paper: any) => {
-      const text = `${paper.title} ${paper.summary}`.toLowerCase();
+      const text = `${paper.title || ""} ${paper.abstract || paper.summary || ""}`.toLowerCase();
       return keywords.some((keyword: string) => text.includes(keyword.toLowerCase()));
     });
 
@@ -502,32 +443,55 @@ class Addon {
   }
 
   /**
-   * 计算文献与用户兴趣的相关度
+   * 基于关键词重叠度打分（无 API，用于 profileMode=keyword）
+   * relevance = 匹配到的关键词权重和 / 总权重，归一化到 [0,1]
+   */
+  private async calculateRelevanceKeywordOnly(papers: any[]): Promise<Array<{ paper: any; relevance: number }>> {
+    const userProfile = await this.data.userProfileManager?.getUserProfile("default");
+    if (!userProfile || !userProfile.keywords.length) {
+      return papers.map(paper => ({ paper, relevance: 0.5 }));
+    }
+    const keywordSet = new Map(userProfile.keywords.map((k: any) => [k.keyword.toLowerCase(), k.weight]));
+    const totalWeight = userProfile.keywords.reduce((s: number, k: any) => s + k.weight, 0) || 1;
+    const results: Array<{ paper: any; relevance: number }> = [];
+    for (const paper of papers) {
+      const text = `${paper.title || ""} ${paper.abstract || paper.summary || ""}`.toLowerCase();
+      let score = 0;
+      for (const [kw, w] of keywordSet) {
+        if (text.includes(kw)) score += w;
+      }
+      const relevance = Math.min(1, score / Math.max(1, totalWeight * 0.3)); // 归一化到约 [0,1]
+      results.push({ paper, relevance });
+    }
+    results.sort((a, b) => b.relevance - a.relevance);
+    return results;
+  }
+
+  /**
+   * 计算文献与用户兴趣的相关度（向量模式，会调 API）
    */
   private async calculateRelevance(papers: any[]): Promise<Array<{ paper: any; relevance: number }>> {
-    // 获取用户画像
     const userProfile = await this.data.userProfileManager?.getUserProfile("default");
     if (!userProfile) {
       ztoolkit.log("User profile not found, assigning default relevance");
-      // 当用户画像不存在时，为所有文献分配默认相关度
-      return papers.map(paper => ({
-        paper,
-        relevance: 0.5 // 默认相关度
-      }));
+      return papers.map(paper => ({ paper, relevance: 0.5 }));
+    }
+    if (!userProfile.interestVector || userProfile.interestVector.length === 0) {
+      return this.calculateRelevanceKeywordOnly(papers);
     }
 
     const results: Array<{ paper: any; relevance: number }> = [];
 
-    // 批量生成向量
+    // 批量生成向量（arXiv 返回 abstract，兼容 summary，摘要参与向量更准）
     const literatureItems = papers.map((paper: any) => ({
       id: paper.id,
       title: paper.title,
-      abstract: paper.summary,
+      abstract: paper.abstract || paper.summary || "",
       authors: paper.authors,
       publicationTitle: "arXiv",
       date: paper.published,
       doi: paper.doi,
-      url: paper.pdf_url,
+      url: paper.pdf_url || paper.pdfUrl,
       tags: []
     }));
 
@@ -554,58 +518,83 @@ class Addon {
     return results;
   }
 
+  /** 规范化 DOI 用于比对（小写、去前后缀） */
+  private normalizeDoi(doi: string | null | undefined): string {
+    if (doi == null || typeof doi !== "string") return "";
+    const s = doi.trim().toLowerCase().replace(/^https?:\/\/doi\.org\/?/i, "");
+    return s || "";
+  }
+
+  /** 从 URL 或 id 提取 arXiv ID（如 2401.12345） */
+  private extractArxivId(urlOrId: string | null | undefined): string {
+    if (urlOrId == null || typeof urlOrId !== "string") return "";
+    const m = urlOrId.match(/arxiv\.org\/abs\/(\d+\.\d+)/i) || urlOrId.match(/^(\d+\.\d+)$/);
+    return m ? m[1] : "";
+  }
+
   /**
-   * 筛选相关文献
+   * 筛选相关文献，始终排除已在库文献（按 DOI 与 arXiv ID）；若无结果则放宽相关度阈值
    */
-  private async filterRelevantPapers(relevanceResults: Array<{ paper: any; relevance: number }>): Promise<any[]> {
-    const threshold = 0.5;
-    const maxPapers = 5;
+  private async filterRelevantPapers(relevanceResults: Array<{ paper: any; relevance: number }>): Promise<{ papers: any[]; relaxedLabel?: string }> {
+    const zotero = this.data.ztoolkit.getGlobal("Zotero");
+    const rawThreshold = (zotero as any).Prefs.get("extensions.zotero.literature-tracker.relevanceThreshold", true);
+    const threshold = typeof rawThreshold === "number" ? rawThreshold : (typeof rawThreshold === "string" ? parseFloat(rawThreshold) : 0.5);
+    const thresholdNum = Number.isFinite(threshold) && threshold >= 0 && threshold <= 1 ? threshold : 0.5;
+    const maxPapers = 15;
 
-    // 过滤出相关度高的文献
-    const filtered = relevanceResults
-      .filter(item => item.relevance >= threshold)
-      .slice(0, maxPapers)
-      .map(item => item.paper);
-
-    // 过滤掉用户已有的文献
-    let finalPapers = filtered;
+    const existingDois = new Set<string>();
+    const existingArxivIds = new Set<string>();
     if (this.data.literatureReader) {
       const existingLiterature = await this.data.literatureReader.getAllLiterature();
-      const existingDOIs = new Set(existingLiterature.map((item: any) => item.doi).filter(Boolean));
-
-      finalPapers = filtered.filter((paper: any) => !existingDOIs.has(paper.doi));
+      for (const item of existingLiterature) {
+        const d = this.normalizeDoi(item.doi);
+        if (d) existingDois.add(d);
+        const a = this.extractArxivId(item.url) || this.extractArxivId((item as any).extra);
+        if (a) existingArxivIds.add(a);
+      }
     }
 
-    // 如果没有相关文献，显示通知
-    if (finalPapers.length === 0) {
-      ztoolkit.log("No relevant papers found after filtering");
-      // 显示通知
-      new ztoolkit.ProgressWindow(this.data.config.addonName, {
-        closeOnClick: true,
-        closeTime: -1,
-      })
-        .createLine({
-          text: "没有找到与您兴趣高度相关的文献",
-          type: "default",
-          progress: 100,
-        })
-        .show()
-        .startCloseTimer(5000);
+    const isInLibrary = (paper: any): boolean => {
+      const doi = this.normalizeDoi(paper.doi);
+      if (doi && existingDois.has(doi)) return true;
+      const arxivId = this.extractArxivId(paper.id) || this.extractArxivId(paper.pdfUrl) || this.extractArxivId(paper.pdf_url);
+      if (arxivId && existingArxivIds.has(arxivId)) return true;
+      return false;
+    };
+
+    let filtered = relevanceResults
+      .filter(item => item.relevance >= thresholdNum)
+      .slice(0, maxPapers * 2)
+      .map(item => item.paper)
+      .filter((p: any) => !isInLibrary(p))
+      .slice(0, maxPapers);
+
+    let finalPapers = filtered;
+    let relaxedLabel: string | undefined;
+
+    if (finalPapers.length === 0 && relevanceResults.length > 0) {
+      ztoolkit.log("No papers above threshold or all in library, relaxing: taking top by relevance (excluding in-library)");
+      const relaxed = relevanceResults
+        .map(item => item.paper)
+        .filter((p: any) => !isInLibrary(p))
+        .slice(0, maxPapers);
+      if (relaxed.length > 0) {
+        finalPapers = relaxed;
+        relaxedLabel = "未达到相关度阈值的文献较多，以下为按相关度排序的推荐（已排除已在库文献）";
+      }
     }
 
-    return finalPapers;
+    return { papers: finalPapers, relaxedLabel };
   }
 
   /**
    * 推送文献
    */
-  private async pushPapers(papers: any[]) {
+  private async pushPapers(papers: any[], relaxedLabel?: string) {
     if (papers.length === 0) {
       return;
     }
-
-    // 显示推荐文献窗口
-    this.showRecommendedPapersWindow(papers);
+    this.showRecommendedPapersWindow(papers, { relaxedLabel });
   }
 
   /**
@@ -617,6 +606,49 @@ class Addon {
       .replace(/[\u200B-\u200D\uFEFF]/g, "")
       .trim();
     return t.replace(/[\u0100-\uFFFF]/g, "");
+  }
+
+  /** Python 文献服务健康检查 URL */
+  private readonly PYTHON_SERVER_HEALTH_URL = "http://localhost:5000/health";
+
+  /**
+   * 检查 Python 文献服务是否已启动；若未启动且已配置自动启动命令则尝试启动后重试
+   * @returns true 表示服务可用，false 表示不可用
+   */
+  public async ensurePythonServer(): Promise<boolean> {
+    const check = (): Promise<boolean> =>
+      new Promise((resolve) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("GET", this.PYTHON_SERVER_HEALTH_URL, true);
+        xhr.timeout = 3000;
+        xhr.onload = () => {
+          if (xhr.status === 200) {
+            try {
+              const json = JSON.parse(xhr.responseText || "{}");
+              resolve(json.status === "ok");
+            } catch {
+              resolve(false);
+            }
+          } else resolve(false);
+        };
+        xhr.onerror = () => resolve(false);
+        xhr.ontimeout = () => resolve(false);
+        xhr.send();
+      });
+
+    if (await check()) return true;
+
+    const zotero = this.data.ztoolkit.getGlobal("Zotero");
+    const startCommand = (zotero as any).Prefs.get("extensions.zotero.literature-tracker.pythonServerStartCommand", true);
+    const cmd = typeof startCommand === "string" ? startCommand.trim() : "";
+    const tryStart = (zotero as any).LiteratureTrackerTryStartPythonServer;
+    if (cmd && typeof tryStart === "function") {
+      tryStart(cmd);
+      await new Promise((r) => setTimeout(r, 4500));
+      if (await check()) return true;
+    }
+
+    return false;
   }
 
   /**
@@ -754,7 +786,7 @@ class Addon {
   /**
    * 显示推荐文献窗口
    */
-  public showRecommendedPapersWindow(papers: any[]) {
+  public showRecommendedPapersWindow(papers: any[], options?: { relaxedLabel?: string }) {
     try {
       const zotero = this.data.ztoolkit.getGlobal("Zotero");
       const win = zotero.getMainWindow().open(
@@ -763,10 +795,10 @@ class Addon {
         "chrome,centerscreen,width=800,height=600,resizable=yes"
       );
 
-      // 传递文献数据与摘要函数到窗口；用闭包固定 addon 引用，避免子窗口调用时 this 丢失导致读不到 Prefs
       if (win) {
         const addonRef = this;
         win.recommendedPapers = papers;
+        win.recommendedPapersRelaxedLabel = options?.relaxedLabel || "";
         win.getPaperSummary = (paper: { title?: string; abstract?: string; summary?: string }) => addonRef.getPaperSummary(paper);
         if ((win as any).document?.readyState === "complete" && typeof (win as any).displayRecommendedPapers === "function") {
           (win as any).displayRecommendedPapers();
@@ -826,6 +858,20 @@ class Addon {
         return;
       }
 
+      const serverOk = await this.ensurePythonServer();
+      if (!serverOk) {
+        ztoolkit.log("Python literature server not running");
+        new ztoolkit.ProgressWindow(this.data.config.addonName, { closeOnClick: true, closeTime: -1 })
+          .createLine({
+            text: "文献服务未启动。请在设置中配置自动启动脚本路径，或手动运行 start-server.bat",
+            type: "error",
+            progress: 100,
+          })
+          .show()
+          .startCloseTimer(8000);
+        return;
+      }
+
       // 获取今日文献
       const papers = await this.data.literatureTrackingService.fetchTodayPapers();
       if (papers.length === 0) {
@@ -833,21 +879,19 @@ class Addon {
         return;
       }
 
-      // 基于关键词初步筛选
-      const keywordFilteredPapers = await this.filterPapersByKeywords(papers);
-      if (keywordFilteredPapers.length === 0) {
-        ztoolkit.log("No papers matched keywords");
-        return;
+      // 基于关键词初步筛选；若无匹配则用全部文献排序，保证有推荐
+      let candidatePapers = await this.filterPapersByKeywords(papers);
+      if (candidatePapers.length === 0) {
+        ztoolkit.log("No papers matched keywords, using all papers for ranking");
+        candidatePapers = papers;
       }
 
-      // 计算相关度
-      const relevanceResults = await this.calculateRelevance(keywordFilteredPapers);
+      const relevanceResults = await this.calculateRelevance(candidatePapers);
+      const { papers: relevantPapers, relaxedLabel } = await this.filterRelevantPapers(relevanceResults);
 
-      // 筛选相关文献
-      const relevantPapers = await this.filterRelevantPapers(relevanceResults);
-
-      // 显示推荐文献窗口
-      this.showRecommendedPapersWindow(relevantPapers);
+      if (relevantPapers.length > 0) {
+        this.showRecommendedPapersWindow(relevantPapers, { relaxedLabel });
+      }
     } catch (error) {
       ztoolkit.log(`Error showing recommended papers: ${error}`);
     }

@@ -191,40 +191,4 @@ export class LiteratureReader {
     });
   }
 
-  /**
-   * 获取当前选中的文献
-   * @returns 选中文献列表
-   */
-  public async getSelectedLiterature(): Promise<LiteratureItem[]> {
-    const Zotero = ztoolkit.getGlobal("Zotero");
-    const literatureItems: LiteratureItem[] = [];
-
-    try {
-      // 获取当前激活的Zotero面板
-      const pane = Zotero.getActiveZoteroPane();
-      if (!pane) {
-        return literatureItems;
-      }
-
-      // 获取选中的项目
-      const selectedItems = pane.getSelectedItems();
-      if (!selectedItems || selectedItems.length === 0) {
-        return literatureItems;
-      }
-
-      // 处理选中的项目
-      for (const item of selectedItems) {
-        if (this.isLiteratureItem(item)) {
-          const literatureItem = this.convertToLiteratureItem(item);
-          if (literatureItem) {
-            literatureItems.push(literatureItem);
-          }
-        }
-      }
-    } catch (error) {
-      ztoolkit.log(`Error getting selected literature: ${error}`);
-    }
-
-    return literatureItems;
-  }
 }

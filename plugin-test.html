@@ -141,15 +141,8 @@
             <div class="feature-card">
                 <h3>User Profile</h3>
                 <button class="button" onclick="buildUserProfile()">Build User Profile</button>
-                <button class="button" onclick="updateUserProfile()">Update User Profile</button>
                 <button class="button" onclick="getUserProfile()">Get User Profile</button>
                 <div id="profile-result"></div>
-            </div>
-            
-            <div class="feature-card">
-                <h3>Literature Vectors</h3>
-                <button class="button" onclick="generateSelectedVectors()">Generate Vectors for Selected Items</button>
-                <div id="vectors-result"></div>
             </div>
             
             <div class="feature-card">
@@ -299,28 +292,6 @@
             }, 2000);
         }
         
-        // 更新用户画像
-        function updateUserProfile() {
-            const button = event.target;
-            const originalText = showLoading(button);
-            const resultElement = document.getElementById('profile-result');
-            
-            // 模拟API调用
-            setTimeout(() => {
-                resultElement.innerHTML = `
-                    <div class="result">
-                        <h4>User Profile Updated Successfully!</h4>
-                        <p>Profile ID: ${mockUserProfile.id}</p>
-                        <p>Last Updated: ${new Date().toLocaleString()}</p>
-                        <p>Core Themes: ${mockUserProfile.coreThemes.length}</p>
-                        <p>Keywords: ${mockUserProfile.keywords.length}</p>
-                    </div>
-                `;
-                log('User profile updated successfully');
-                hideLoading(button, originalText);
-            }, 2000);
-        }
-        
         // 获取用户画像
         function getUserProfile() {
             const button = event.target;
@@ -351,26 +322,6 @@
                     </div>
                 `;
                 log('User profile retrieved successfully');
-                hideLoading(button, originalText);
-            }, 2000);
-        }
-        
-        // 生成选中文献的向量
-        function generateSelectedVectors() {
-            const button = event.target;
-            const originalText = showLoading(button);
-            const resultElement = document.getElementById('vectors-result');
-            
-            // 模拟API调用
-            setTimeout(() => {
-                resultElement.innerHTML = `
-                    <div class="result">
-                        <h4>Vectors Generated Successfully!</h4>
-                        <p>Generated vectors for 3 selected items</p>
-                        <p>Vector dimensions: 1024</p>
-                    </div>
-                `;
-                log('Vectors generated successfully for selected items');
                 hideLoading(button, originalText);
             }, 2000);
         }

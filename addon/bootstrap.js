@@ -9,6 +9,105 @@ var chromeHandle;
 
 function install(data, reason) { }
 
+/**
+ * 尝试启动 Python 文献服务（由 addon 在检测到服务未运行时调用）
+ * @param {string} startCommand - 启动脚本完整路径，如 D:\...\start-server.bat 或 /path/to/start-server.sh
+ * @returns {boolean} 是否已尝试启动
+ */
+function tryStartPythonServer(startCommand) {
+  if (!startCommand || typeof startCommand !== "string") return false;
+  startCommand = startCommand.trim();
+  if (!startCommand) return false;
+  try {
+    var Cc = Components.classes;
+    var Ci = Components.interfaces;
+    var file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
+    file.initWithPath(startCommand);
+    if (!file.exists()) return false;
+    var workDir = file.parent;
+    var process = Cc["@mozilla.org/process/util;1"].createInstance(Ci.nsIProcess);
+    var isWin = Services.appinfo.OS === "WINNT";
+    if (isWin) {
+      var leaf = file.leaf;
+      var isBat = leaf.toLowerCase().slice(-4) === ".bat" || leaf.toLowerCase().slice(-4) === ".cmd";
+      if (isBat) {
+        var cmd = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
+        cmd.initWithPath("C:\\Windows\\System32\\cmd.exe");
+        if (!cmd.exists()) cmd.initWithPath("cmd.exe");
+        process.init(cmd);
+        process.run(false, ["/c", file.path], 1, workDir);
+      } else {
+        process.init(file);
+        process.run(false, [], 0, workDir);
+      }
+    } else {
+      file.permissions = 0755;
+      process.init(file);
+      process.run(false, [], 0, workDir);
+    }
+    return true;
+  } catch (e) {
+    try { Components.utils.reportError("Literature Tracker tryStartPythonServer: " + e.message); } catch (err) {}
+    return false;
+  }
+}
+
+/**
+ * 写入文本到文件（用于用户画像 JSON 存储，避免依赖 SQLite）
+ * @param {string} filePath - 完整路径
+ * @param {string} content - 文本内容
+ * @returns {boolean} 是否成功
+ */
+function writeTextFile(filePath, content) {
+  try {
+    var Cc = Components.classes;
+    var Ci = Components.interfaces;
+    var file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
+    file.initWithPath(filePath);
+    var stream = Cc["@mozilla.org/network/file-output-stream;1"].createInstance(Ci.nsIFileOutputStream);
+    stream.init(file, 0x02 | 0x08 | 0x20, 0x1B4, 0);
+    var converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].createInstance(Ci.nsIScriptableUnicodeConverter);
+    converter.charset = "UTF-8";
+    var buf = converter.convertToByteArray(content);
+    stream.write(buf, buf.length);
+    stream.close();
+    return true;
+  } catch (e) {
+    try { Components.utils.reportError("Literature Tracker writeTextFile: " + e.message); } catch (err) {}
+    return false;
+  }
+}
+
+/**
+ * 从文件读取文本
+ * @param {string} filePath - 完整路径
+ * @returns {string|null} 文件内容或 null
+ */
+function readTextFile(filePath) {
+  try {
+    var Cc = Components.classes;
+    var Ci = Components.interfaces;
+    var file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
+    file.initWithPath(filePath);
+    if (!file.exists()) return null;
+    var stream = Cc["@mozilla.org/network/file-input-stream;1"].createInstance(Ci.nsIFileInputStream);
+    stream.init(file, 0x01, 0, null);
+    var reader = Cc["@mozilla.org/intl/converter-input-stream;1"].createInstance(Ci.nsIConverterInputStream);
+    reader.init(stream, "UTF-8", 1024, 0);
+    var chunk = {};
+    var result = [];
+    var n;
+    while ((n = reader.readString(8192, chunk)) > 0) {
+      result.push(chunk.value);
+    }
+    reader.close();
+    return result.join("");
+  } catch (e) {
+    try { Components.utils.reportError("Literature Tracker readTextFile: " + e.message); } catch (err) {}
+    return null;
+  }
+}
+
 async function startup({ id, version, resourceURI, rootURI }, reason) {
   var aomStartup = Components.classes[
     "@mozilla.org/addons/addon-manager-startup;1"
@@ -17,6 +116,12 @@ async function startup({ id, version, resourceURI, rootURI }, reason) {
   chromeHandle = aomStartup.registerChrome(manifestURI, [
     ["content", "__addonRef__", rootURI + "content/"],
   ]);
+
+  if (typeof Zotero !== "undefined") {
+    Zotero.LiteratureTrackerTryStartPythonServer = tryStartPythonServer;
+    Zotero.LiteratureTrackerWriteTextFile = writeTextFile;
+    Zotero.LiteratureTrackerReadTextFile = readTextFile;
+  }
 
   /**
    * Global variables for plugin code.
@@ -77,7 +182,7 @@ async function startup({ id, version, resourceURI, rootURI }, reason) {
 
               const menuItem = doc.createElement('menuitem');
               menuItem.id = 'literature-tracker-settings';
-              menuItem.setAttribute('label', 'Literature Tracker 设置');
+              menuItem.setAttribute('label', '文献追踪 设置');
               menuItem.setAttribute('oncommand', `
                 window.open(
                   'chrome://literature-tracker/content/preferences.xhtml',

@@ -110,7 +110,6 @@
         <div class="section">
             <h2>Test Controls</h2>
             <button class="button" onclick="buildUserProfile()">Build User Profile</button>
-            <button class="button" onclick="updateUserProfile()">Update User Profile</button>
             <button class="button" onclick="getUserProfile()">Get User Profile</button>
             <button class="button" onclick="clearResults()">Clear Results</button>
         </div>
@@ -125,10 +124,9 @@
             <ol>
                 <li>Install the Literature Tracker plugin in Zotero</li>
                 <li>Add some literature items to your Zotero library</li>
-                <li>Use the plugin's menu to generate vectors for your literature</li>
-                <li>Click "Build User Profile" to create your user profile</li>
+                <li>Click "Build User Profile" to create your user profile based on your library</li>
                 <li>Click "Get User Profile" to view your user profile</li>
-                <li>Add new literature items and click "Update User Profile" to update your profile</li>
+                <li>Add new literature items and use "Build User Profile" again to rebuild your profile</li>
             </ol>
         </div>
     </div>
@@ -184,26 +182,6 @@
                         <h3>User Profile Built Successfully!</h3>
                         <p>Profile ID: ${mockUserProfile.id}</p>
                         <p>Last Updated: ${new Date(mockUserProfile.lastUpdated).toLocaleString()}</p>
-                        <p>Core Themes: ${mockUserProfile.coreThemes.length}</p>
-                        <p>Keywords: ${mockUserProfile.keywords.length}</p>
-                    </div>
-                `;
-                hideLoading(button, originalText);
-            }, 2000);
-        }
-        
-        function updateUserProfile() {
-            const button = event.target;
-            const originalText = showLoading(button);
-            
-            // 模拟API调用
-            setTimeout(() => {
-                const results = document.getElementById('results');
-                results.innerHTML = `
-                    <div class="result">
-                        <h3>User Profile Updated Successfully!</h3>
-                        <p>Profile ID: ${mockUserProfile.id}</p>
-                        <p>Last Updated: ${new Date().toLocaleString()}</p>
                         <p>Core Themes: ${mockUserProfile.coreThemes.length}</p>
                         <p>Keywords: ${mockUserProfile.keywords.length}</p>
                     </div>

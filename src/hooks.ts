@@ -91,43 +91,34 @@ function addMenuItems(win: any) {
     // 创建主菜单项
     const mainMenuItem = win.document.createXULElement("menu");
     mainMenuItem.id = "literature-tracker-menu";
-    mainMenuItem.setAttribute("label", "Literature Tracker");
+    mainMenuItem.setAttribute("label", "文献追踪");
 
     // 创建子菜单
     const subMenu = win.document.createXULElement("menupopup");
     subMenu.id = "literature-tracker-submenu";
 
-    // 创建生成向量菜单项
-    const generateVectorMenuItem = win.document.createXULElement("menuitem");
-    generateVectorMenuItem.id = "literature-tracker-generate-vectors";
-    generateVectorMenuItem.setAttribute("label", "Generate Vectors for Selected Items");
-    generateVectorMenuItem.setAttribute("accesskey", "G");
-    generateVectorMenuItem.addEventListener("command", () => {
-      addon.hooks.generateSelectedLiteratureVectors();
-    });
-
     // 创建构建用户画像菜单项
     const buildProfileMenuItem = win.document.createXULElement("menuitem");
     buildProfileMenuItem.id = "literature-tracker-build-profile";
-    buildProfileMenuItem.setAttribute("label", "Build User Profile");
+    buildProfileMenuItem.setAttribute("label", "构建用户画像");
     buildProfileMenuItem.setAttribute("accesskey", "B");
     buildProfileMenuItem.addEventListener("command", () => {
       addon.hooks.buildUserProfile();
     });
 
-    // 创建更新用户画像菜单项
-    const updateProfileMenuItem = win.document.createXULElement("menuitem");
-    updateProfileMenuItem.id = "literature-tracker-update-profile";
-    updateProfileMenuItem.setAttribute("label", "Update User Profile");
-    updateProfileMenuItem.setAttribute("accesskey", "U");
-    updateProfileMenuItem.addEventListener("command", () => {
-      addon.hooks.updateUserProfile();
+    // 查看用户画像（验证是否成功使用）
+    const viewProfileMenuItem = win.document.createXULElement("menuitem");
+    viewProfileMenuItem.id = "literature-tracker-view-profile";
+    viewProfileMenuItem.setAttribute("label", "查看用户画像");
+    viewProfileMenuItem.setAttribute("accesskey", "V");
+    viewProfileMenuItem.addEventListener("command", () => {
+      addon.hooks.showUserProfileSummary();
     });
 
     // 创建主动推送菜单项
     const pushPapersMenuItem = win.document.createXULElement("menuitem");
     pushPapersMenuItem.id = "literature-tracker-push-papers";
-    pushPapersMenuItem.setAttribute("label", "Push Today's Papers");
+    pushPapersMenuItem.setAttribute("label", "推送今日文献");
     pushPapersMenuItem.setAttribute("accesskey", "P");
     pushPapersMenuItem.addEventListener("command", () => {
       addon.hooks.pushTodayPapers();
@@ -136,7 +127,7 @@ function addMenuItems(win: any) {
     // 创建追踪文献菜单项
     const trackLiteratureMenuItem = win.document.createXULElement("menuitem");
     trackLiteratureMenuItem.id = "literature-tracker-track-literature";
-    trackLiteratureMenuItem.setAttribute("label", "Track Literature");
+    trackLiteratureMenuItem.setAttribute("label", "追踪文献");
     trackLiteratureMenuItem.setAttribute("accesskey", "T");
     trackLiteratureMenuItem.addEventListener("command", () => {
       addon.hooks.triggerLiteratureTracking();
@@ -145,16 +136,15 @@ function addMenuItems(win: any) {
     // 创建设置菜单项
     const settingsMenuItem = win.document.createXULElement("menuitem");
     settingsMenuItem.id = "literature-tracker-settings";
-    settingsMenuItem.setAttribute("label", "Settings");
+    settingsMenuItem.setAttribute("label", "设置");
     settingsMenuItem.setAttribute("accesskey", "S");
     settingsMenuItem.addEventListener("command", () => {
       addon.hooks.openSettingsWindow();
     });
 
     // 组装菜单
-    subMenu.appendChild(generateVectorMenuItem);
     subMenu.appendChild(buildProfileMenuItem);
-    subMenu.appendChild(updateProfileMenuItem);
+    subMenu.appendChild(viewProfileMenuItem);
     subMenu.appendChild(pushPapersMenuItem);
     subMenu.appendChild(trackLiteratureMenuItem);
     subMenu.appendChild(settingsMenuItem);
@@ -329,51 +319,6 @@ async function triggerLiteratureTracking() {
 }
 
 /**
- * 生成选中文献的向量
- */
-async function generateSelectedLiteratureVectors() {
-  try {
-    const popupWin = new ztoolkit.ProgressWindow(addon.data.config.addonName, {
-      closeOnClick: true,
-      closeTime: -1,
-    })
-      .createLine({
-        text: "开始生成选中文献的向量...",
-        type: "default",
-        progress: 0,
-      })
-      .show();
-
-    await Zotero.Promise.delay(500);
-
-    // 调用插件的方法生成向量
-    await addon.generateSelectedLiteratureVectors();
-
-    await Zotero.Promise.delay(500);
-
-    popupWin.changeLine({
-      progress: 100,
-      text: "向量生成完成！",
-    });
-
-    popupWin.startCloseTimer(3000);
-  } catch (error) {
-    ztoolkit.log(`Error generating vectors: ${error}`);
-    new ztoolkit.ProgressWindow(addon.data.config.addonName, {
-      closeOnClick: true,
-      closeTime: -1,
-    })
-      .createLine({
-        text: `向量生成失败: ${error}`,
-        type: "error",
-        progress: 100,
-      })
-      .show()
-      .startCloseTimer(3000);
-  }
-}
-
-/**
  * 构建用户画像
  */
 async function buildUserProfile() {
@@ -419,48 +364,10 @@ async function buildUserProfile() {
 }
 
 /**
- * 更新用户画像
+ * 查看用户画像摘要（验证画像是否已构建并被使用）
  */
-async function updateUserProfile() {
-  try {
-    const popupWin = new ztoolkit.ProgressWindow(addon.data.config.addonName, {
-      closeOnClick: true,
-      closeTime: -1,
-    })
-      .createLine({
-        text: "开始更新用户画像...",
-        type: "default",
-        progress: 0,
-      })
-      .show();
-
-    await Zotero.Promise.delay(500);
-
-    // 调用插件的方法更新用户画像
-    await addon.updateUserProfile();
-
-    await Zotero.Promise.delay(500);
-
-    popupWin.changeLine({
-      progress: 100,
-      text: "用户画像更新完成！",
-    });
-
-    popupWin.startCloseTimer(3000);
-  } catch (error) {
-    ztoolkit.log(`Error updating user profile: ${error}`);
-    new ztoolkit.ProgressWindow(addon.data.config.addonName, {
-      closeOnClick: true,
-      closeTime: -1,
-    })
-      .createLine({
-        text: `用户画像更新失败: ${error}`,
-        type: "error",
-        progress: 100,
-      })
-      .show()
-      .startCloseTimer(3000);
-  }
+async function showUserProfileSummary() {
+  await addon.showUserProfileSummary();
 }
 
 /**
@@ -528,8 +435,7 @@ export default {
   onShortcutKey,
   openSettingsWindow,
   triggerLiteratureTracking,
-  generateSelectedLiteratureVectors,
   buildUserProfile,
-  updateUserProfile,
+  showUserProfileSummary,
   pushTodayPapers,
 }; 

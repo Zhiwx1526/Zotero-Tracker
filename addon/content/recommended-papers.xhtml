@@ -28,12 +28,14 @@
     .btn-open { padding: 6px 14px; font-size: 12px; font-weight: 500; color: #fff; background: linear-gradient(135deg, #4a5a9e 0%, #3d4a82 100%); border: none; border-radius: 6px; cursor: pointer; }
     .btn-open:hover { opacity: 0.92; }
     .papers-empty { text-align: center; padding: 48px 24px; color: #6b7280; font-size: 15px; }
+    .papers-relaxed-notice { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 13px; color: #92400e; }
   </style>
 </head>
 <body>
   <div class="papers-root">
     <h1 class="papers-title">推荐文献</h1>
-    <p class="papers-subtitle">Literature Tracker 为您推荐的相关文献</p>
+    <p class="papers-subtitle">为您推荐的相关文献</p>
+    <div id="papers-relaxed-notice" class="papers-relaxed-notice" style="display: none;"></div>
     <button type="button" class="btn-close" onclick="window.close();">关闭</button>
     <div id="papers-container" class="papers-list"></div>
   </div>
@@ -80,18 +82,18 @@
 
       var title = document.createElement("div");
       title.className = "paper-title";
-      title.textContent = (index + 1) + ". " + (paper.title || "Untitled");
+      title.textContent = (index + 1) + ". " + (paper.title || "无标题");
       card.appendChild(title);
 
-      var authors = (paper.authors &amp;&amp; paper.authors.length) ? paper.authors.join(", ") : "Unknown";
+      var authors = (paper.authors &amp;&amp; paper.authors.length) ? paper.authors.join(", ") : "未知";
       var meta = document.createElement("div");
       meta.className = "paper-meta";
-      meta.textContent = "Authors: " + authors;
+      meta.textContent = "作者：" + authors;
       card.appendChild(meta);
 
       var src = document.createElement("div");
       src.className = "paper-source";
-      src.textContent = paper.published ? ("Source: arXiv · " + new Date(paper.published).toLocaleDateString()) : "Source: arXiv";
+      src.textContent = paper.published ? ("来源：arXiv · " + new Date(paper.published).toLocaleDateString()) : "来源：arXiv";
       card.appendChild(src);
 
       var summaryBox = document.createElement("div");
@@ -136,6 +138,16 @@
     function displayRecommendedPapers() {
       var container = document.getElementById("papers-container");
       var papers = window.recommendedPapers || [];
+      var relaxedNotice = document.getElementById("papers-relaxed-notice");
+      var relaxedLabel = (typeof window.recommendedPapersRelaxedLabel !== "undefined" &amp;&amp; window.recommendedPapersRelaxedLabel) ? String(window.recommendedPapersRelaxedLabel) : "";
+      if (relaxedNotice) {
+        if (relaxedLabel) {
+          relaxedNotice.textContent = relaxedLabel;
+          relaxedNotice.style.display = "block";
+        } else {
+          relaxedNotice.style.display = "none";
+        }
+      }
 
       container.innerHTML = "";
 
