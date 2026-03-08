@@ -82,7 +82,7 @@ async function startup({ id, version, resourceURI, rootURI }, reason) {
                 window.open(
                   'chrome://literature-tracker/content/preferences.xhtml',
                   'literature-tracker-preferences',
-                  'chrome,centerscreen,width=800,height=600'
+                  'chrome,centerscreen,width=520,height=380,resizable=yes'
                 );
               `);
               toolsMenu.appendChild(menuItem);
@@ -128,7 +128,7 @@ async function startup({ id, version, resourceURI, rootURI }, reason) {
                 win.open(
                   'chrome://literature-tracker/content/preferences.xhtml',
                   'literature-tracker-preferences',
-                  'chrome,centerscreen,width=800,height=600'
+                  'chrome,centerscreen,width=520,height=380,resizable=yes'
                 );
               }
             }, false);
@@ -176,7 +176,7 @@ async function onMainWindowLoad({ window }, reason) {
           window.open(
             'chrome://literature-tracker/content/preferences.xhtml',
             'literature-tracker-preferences',
-            'chrome,centerscreen,width=800,height=600'
+            'chrome,centerscreen,width=520,height=380,resizable=yes'
           );
         }
       }, false);

@@ -21,12 +21,12 @@
   "homepage": "https://github.com/windingwind/zotero-plugin-template#readme",
   "license": "AGPL-3.0-or-later",
   "scripts": {
-    "start": "zotero-plugin serve",
-    "build": "zotero-plugin build && tsc --noEmit",
+    "start": "npx zotero-plugin serve",
+    "build": "npx zotero-plugin build && tsc --noEmit",
     "lint:check": "prettier --check . && eslint .",
     "lint:fix": "prettier --write . && eslint . --fix",
-    "release": "zotero-plugin release",
-    "test": "zotero-plugin test",
+    "release": "npx zotero-plugin release",
+    "test": "npx zotero-plugin test",
     "update-deps": "npm update --save"
   },
   "dependencies": {

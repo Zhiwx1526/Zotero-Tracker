@@ -7,8 +7,8 @@
 declare namespace _ZoteroTypes {
   interface Prefs {
     PluginPrefsMap: {
-      "openaiKey": string;
-      "claudeKey": string;
+      "apiKey": string;
+      "apiProvider": string;
       "trackArxiv": boolean;
       "trackPubmed": boolean;
       "relevanceThreshold": number;

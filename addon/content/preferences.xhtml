@@ -1,179 +1,148 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:html="http://www.w3.org/1999/xhtml">
-
 <head>
-  <title>Literature Tracker Preferences</title>
-  <link rel="stylesheet" href="chrome://global/skin/" />
-  <link rel="stylesheet" href="chrome://zotero/skin/zotero.css" />
-  <link rel="stylesheet" href="chrome://literature-tracker/content/zoteroPane.css" />
+  <meta charset="UTF-8"/>
+  <title>Literature Tracker 设置</title>
+  <link rel="stylesheet" href="chrome://global/skin/"/>
+  <link rel="stylesheet" href="chrome://zotero/skin/zotero.css"/>
+  <style type="text/css">
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 24px; background: #f5f6f8; }
+    .prefs-box { max-width: 480px; background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+    .prefs-title { font-size: 18px; font-weight: bold; color: #1a1a2e; margin: 0 0 20px 0; padding-bottom: 12px; border-bottom: 2px solid #e8eaed; }
+    .prefs-row { margin-bottom: 16px; }
+    .prefs-label { display: block; font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 6px; }
+    .prefs-input { width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 14px; border: 1px solid #d1d5db; border-radius: 8px; }
+    .prefs-input:focus { outline: none; border-color: #4a5a9e; box-shadow: 0 0 0 2px rgba(74, 90, 158, 0.2); }
+    .prefs-hint { font-size: 12px; color: #6b7280; margin-top: 4px; }
+    .btn-save { padding: 10px 24px; font-size: 14px; font-weight: 500; color: #fff; background: linear-gradient(135deg, #4a5a9e 0%, #3d4a82 100%); border: none; border-radius: 8px; cursor: pointer; margin-top: 8px; margin-right: 8px; }
+    .btn-save:hover { opacity: 0.92; }
+    .btn-verify { padding: 10px 20px; font-size: 13px; font-weight: 500; color: #4a5a9e; background: #fff; border: 1px solid #4a5a9e; border-radius: 8px; cursor: pointer; margin-top: 8px; }
+    .btn-verify:hover { background: #f0f2ff; }
+  </style>
 </head>
-
 <body>
-  <vbox id="literature-tracker-prefs" style="padding: 10px;">
-    <html:h2>文献追踪与推送</html:h2>
+  <div class="prefs-box">
+    <h1 class="prefs-title">Literature Tracker 设置</h1>
 
-    <!-- API Key Settings -->
-    <html:h3>API设置</html:h3>
+    <div class="prefs-row">
+      <label class="prefs-label" for="api-provider">API 提供商</label>
+      <select id="api-provider" class="prefs-input" style="width: 100%; max-width: 100%;">
+        <option value="deepseek">DeepSeek（国内推荐，api.deepseek.com）</option>
+        <option value="openai">OpenAI（api.openai.com）</option>
+      </select>
+      <div class="prefs-hint">DeepSeek 使用 DeepSeek API Key，国内网络更易访问。</div>
+    </div>
 
-    <hbox align="center">
-      <html:label style="width: 150px;">OpenAI API密钥:</html:label>
-      <html:input type="password" id="openai-key" style="width: 300px;" />
-    </hbox>
+    <div class="prefs-row">
+      <label class="prefs-label" for="api-key">大模型 API Key</label>
+      <input type="password" id="api-key" class="prefs-input" placeholder="DeepSeek 或 OpenAI 的 API Key"/>
+      <div class="prefs-hint">用于文献概括与相关功能，请勿泄露。</div>
+    </div>
 
-    <hbox align="center">
-      <html:label style="width: 150px;">Claude API密钥:</html:label>
-      <html:input type="password" id="claude-key" style="width: 300px;" />
-    </hbox>
+    <div class="prefs-row">
+      <label class="prefs-label" for="shortcut-key">快捷键</label>
+      <input type="text" id="shortcut-key" class="prefs-input" placeholder="默认为空格" maxlength="1"/>
+      <div class="prefs-hint">按下该键可触发文献追踪，建议使用空格或单个字母。</div>
+    </div>
 
-    <separator />
+    <div class="prefs-row">
+      <button type="button" id="verify-api-key" class="btn-verify">验证 API Key</button>
+      <button type="button" id="save-prefs" class="btn-save">保存设置</button>
+    </div>
+  </div>
 
-    <!-- Website Selection -->
-    <html:h3>追踪网站</html:h3>
+  <script type="application/javascript">
+  (function() {
+    var PREFIX = "extensions.zotero.literature-tracker";
+    var Zotero = (window.opener &amp;&amp; window.opener.Zotero) ? window.opener.Zotero : (typeof Zotero !== "undefined" ? Zotero : null);
 
-    <hbox align="center">
-      <checkbox id="track-arxiv" label="追踪arXiv" />
-    </hbox>
-
-    <hbox align="center">
-      <checkbox id="track-pubmed" label="追踪PubMed" />
-    </hbox>
-
-    <separator />
-
-    <!-- arXiv Settings -->
-    <html:h3>arXiv追踪设置</html:h3>
-
-    <hbox align="center">
-      <html:label style="width: 150px;">arXiv分类:</html:label>
-      <html:input type="text" id="arxiv-categories" placeholder="cs.AI, cs.LG" style="width: 300px;" />
-      <html:label style="margin-left: 10px; font-size: 12px; color: gray;">(用逗号分隔)</html:label>
-    </hbox>
-
-    <hbox align="center">
-      <html:label style="width: 150px;">关键词:</html:label>
-      <html:input type="text" id="arxiv-keywords" placeholder="machine learning, deep learning" style="width: 300px;" />
-      <html:label style="margin-left: 10px; font-size: 12px; color: gray;">(用逗号分隔)</html:label>
-    </hbox>
-
-    <hbox align="center">
-      <html:label style="width: 150px;">作者:</html:label>
-      <html:input type="text" id="arxiv-authors" placeholder="Author Name" style="width: 300px;" />
-      <html:label style="margin-left: 10px; font-size: 12px; color: gray;">(用逗号分隔)</html:label>
-    </hbox>
-
-    <hbox align="center">
-      <html:label style="width: 150px;">最大结果数:</html:label>
-      <html:input type="number" id="arxiv-max-results" min="10" max="200" value="50" style="width: 100px;" />
-    </hbox>
-
-    <separator />
-
-    <!-- Relevance Threshold -->
-    <html:h3>相关度设置</html:h3>
-
-    <hbox align="center">
-      <html:label style="width: 150px;">相关度阈值:</html:label>
-      <html:input type="range" id="relevance-threshold" min="0" max="1" step="0.05" value="0.7" style="width: 200px;" />
-      <html:span id="threshold-value" style="margin-left: 10px;">0.7</html:span>
-    </hbox>
-
-    <separator />
-
-    <!-- Keyboard Shortcut -->
-    <html:h3>快捷键设置</html:h3>
-
-    <hbox align="center">
-      <html:label style="width: 150px;">激活键:</html:label>
-      <html:input type="text" id="shortcut-key" value="0" style="width: 100px;" />
-    </hbox>
-
-    <separator />
-
-    <!-- Save Button -->
-    <hbox pack="end">
-      <html:button id="save-prefs" style="padding: 5px 20px;">保存设置</html:button>
-    </hbox>
-  </vbox>
-
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      const openaiKeyInput = document.getElementById('openai-key');
-      const claudeKeyInput = document.getElementById('claude-key');
-      const trackArxivCheckbox = document.getElementById('track-arxiv');
-      const trackPubmedCheckbox = document.getElementById('track-pubmed');
-      const arxivCategoriesInput = document.getElementById('arxiv-categories');
-      const arxivKeywordsInput = document.getElementById('arxiv-keywords');
-      const arxivAuthorsInput = document.getElementById('arxiv-authors');
-      const arxivMaxResultsInput = document.getElementById('arxiv-max-results');
-      const relevanceThresholdInput = document.getElementById('relevance-threshold');
-      const thresholdValueSpan = document.getElementById('threshold-value');
-      const shortcutKeyInput = document.getElementById('shortcut-key');
-      const saveButton = document.getElementById('save-prefs');
-
-      // Load saved preferences
+    function getPref(key, def) {
+      if (!Zotero || !Zotero.Prefs) return def;
       try {
-        const prefs = Zotero.Prefs;
-        openaiKeyInput.value = prefs.get('extensions.literature-tracker.openaiKey', true) || '';
-        claudeKeyInput.value = prefs.get('extensions.literature-tracker.claudeKey', true) || '';
-        trackArxivCheckbox.checked = prefs.get('extensions.literature-tracker.trackArxiv', true) || false;
-        trackPubmedCheckbox.checked = prefs.get('extensions.literature-tracker.trackPubmed', true) || false;
-
-        const categories = prefs.get('extensions.literature-tracker.categories', true) || ['cs.AI', 'cs.LG'];
-        arxivCategoriesInput.value = Array.isArray(categories) ? categories.join(', ') : categories;
-
-        const keywords = prefs.get('extensions.literature-tracker.keywords', true) || [];
-        arxivKeywordsInput.value = Array.isArray(keywords) ? keywords.join(', ') : keywords;
-
-        const authors = prefs.get('extensions.literature-tracker.authors', true) || [];
-        arxivAuthorsInput.value = Array.isArray(authors) ? authors.join(', ') : authors;
-
-        arxivMaxResultsInput.value = prefs.get('extensions.literature-tracker.maxResults', true) || 50;
-
-        const threshold = prefs.get('extensions.literature-tracker.relevanceThreshold', true) || 0.7;
-        relevanceThresholdInput.value = threshold;
-        thresholdValueSpan.textContent = threshold;
-        shortcutKeyInput.value = prefs.get('extensions.literature-tracker.shortcutKey', true) || '0';
+        var v = Zotero.Prefs.get(PREFIX + "." + key, true);
+        return v !== undefined &amp;&amp; v !== null ? v : def;
       } catch (e) {
-        console.error('Error loading preferences:', e);
+        return def;
       }
+    }
 
-      // Update threshold value display
-      relevanceThresholdInput.addEventListener('input', function () {
-        thresholdValueSpan.textContent = this.value;
+    function setPref(key, value) {
+      if (!Zotero || !Zotero.Prefs) throw new Error("Zotero 未就绪，请从 Zotero 主窗口的菜单打开设置。");
+      Zotero.Prefs.set(PREFIX + "." + key, value, true);
+    }
+
+    function getApiProviderPref() {
+      var v = getPref("apiProvider", "deepseek");
+      return (v === "openai" || v === "deepseek") ? v : "deepseek";
+    }
+
+    function getAddon() {
+      return (window.opener &amp;&amp; window.opener.Zotero &amp;&amp; window.opener.Zotero.LiteratureTracker) ? window.opener.Zotero.LiteratureTracker : null;
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+      var apiProviderSelect = document.getElementById("api-provider");
+      var apiKeyInput = document.getElementById("api-key");
+      var shortcutInput = document.getElementById("shortcut-key");
+      var saveBtn = document.getElementById("save-prefs");
+      var verifyBtn = document.getElementById("verify-api-key");
+
+      apiProviderSelect.value = getApiProviderPref();
+      var apiVal = getPref("apiKey", "") || "";
+      if (!apiVal) {
+        var legacy = getPref("openaiKey", "") || "";
+        if (legacy) apiVal = legacy;
+      }
+      apiKeyInput.value = apiVal;
+      shortcutInput.value = getPref("shortcutKey", " ") || " ";
+
+      verifyBtn.addEventListener("click", function() {
+        var key = (apiKeyInput.value || "").trim();
+        if (!key) {
+          alert("请先输入 API Key 再验证。");
+          return;
+        }
+        verifyBtn.disabled = true;
+        verifyBtn.textContent = "验证中...";
+        var addon = getAddon();
+        if (!addon || typeof addon.verifyApiKey !== "function") {
+          verifyBtn.disabled = false;
+          verifyBtn.textContent = "验证 API Key";
+          alert("无法连接插件，请从 Zotero 主窗口「工具 → Literature Tracker → Settings」打开本设置页后重试。");
+          return;
+        }
+        addon.verifyApiKey(key).then(function(r) {
+          verifyBtn.disabled = false;
+          verifyBtn.textContent = "验证 API Key";
+          alert(r.ok ? "API Key 有效。" : ("验证失败：\n" + r.message));
+        }).catch(function(e) {
+          verifyBtn.disabled = false;
+          verifyBtn.textContent = "验证 API Key";
+          alert("验证出错：" + (e &amp;&amp; e.message ? e.message : String(e)));
+        });
       });
 
-      // Save preferences
-      saveButton.addEventListener('click', function () {
+      saveBtn.addEventListener("click", function() {
         try {
-          const prefs = Zotero.Prefs;
-          prefs.set('extensions.literature-tracker.openaiKey', openaiKeyInput.value, true);
-          prefs.set('extensions.literature-tracker.claudeKey', claudeKeyInput.value, true);
-          prefs.set('extensions.literature-tracker.trackArxiv', trackArxivCheckbox.checked, true);
-          prefs.set('extensions.literature-tracker.trackPubmed', trackPubmedCheckbox.checked, true);
-
-          const categories = arxivCategoriesInput.value.split(',').map(s => s.trim()).filter(s => s);
-          prefs.set('extensions.literature-tracker.categories', categories, true);
-
-          const keywords = arxivKeywordsInput.value.split(',').map(s => s.trim()).filter(s => s);
-          prefs.set('extensions.literature-tracker.keywords', keywords, true);
-
-          const authors = arxivAuthorsInput.value.split(',').map(s => s.trim()).filter(s => s);
-          prefs.set('extensions.literature-tracker.authors', authors, true);
-
-          prefs.set('extensions.literature-tracker.maxResults', parseInt(arxivMaxResultsInput.value), true);
-          prefs.set('extensions.literature-tracker.relevanceThreshold', parseFloat(relevanceThresholdInput.value), true);
-          prefs.set('extensions.literature-tracker.shortcutKey', shortcutKeyInput.value, true);
-
-          alert('设置已保存！');
+          if (!Zotero || !Zotero.Prefs) {
+            alert("保存失败：Zotero 未就绪。请从 Zotero 主窗口「工具 → Literature Tracker → Settings」打开设置后再保存。");
+            return;
+          }
+          var key = (apiKeyInput.value || "").trim();
+          var shortcut = (shortcutInput.value || " ").trim() || " ";
+          var provider = apiProviderSelect.value === "openai" ? "openai" : "deepseek";
+          setPref("apiProvider", provider);
+          setPref("apiKey", key);
+          setPref("shortcutKey", shortcut);
+          alert("设置已保存。若修改了 API Key 或快捷键，建议重启 Zotero 后生效。");
           window.close();
         } catch (e) {
-          console.error('Error saving preferences:', e);
-          alert('保存设置失败: ' + e.message);
+          alert("保存失败：" + (e &amp;&amp; e.message ? e.message : String(e)));
         }
       });
     });
+  })();
   </script>
 </body>
-
 </html>

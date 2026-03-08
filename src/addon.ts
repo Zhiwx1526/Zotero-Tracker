@@ -76,7 +76,7 @@ class Addon {
       // 初始化向量生成器
       try {
         const zotero = this.data.ztoolkit.getGlobal("Zotero");
-        const apiKey = zotero.Prefs.get("extensions.zotero.literature-tracker.apiKey") as string | null;
+        const apiKey = zotero.Prefs.get("extensions.zotero.literature-tracker.apiKey", true) as string | null;
         this.data.vectorGenerator = new VectorGenerator(apiKey);
         ztoolkit.log("Vector generator initialized");
       } catch (error) {
@@ -152,7 +152,7 @@ class Addon {
    * 加载快捷键设置
    */
   private loadShortcutKey(): void {
-    const shortcutKey = this.data.ztoolkit.getGlobal("Zotero").Prefs.get("extensions.zotero.literature-tracker.shortcutKey") || " ";
+    const shortcutKey = this.data.ztoolkit.getGlobal("Zotero").Prefs.get("extensions.zotero.literature-tracker.shortcutKey", true) || " ";
     this.data.shortcutKey = shortcutKey as string;
   }
 
@@ -609,6 +609,149 @@ class Addon {
   }
 
   /**
+   * 清理 API Key：去除首尾空白、BOM、零宽字符，并限制为 ASCII（避免请求头报错）
+   */
+  private sanitizeApiKey(s: string): string {
+    let t = String(s)
+      .replace(/^\uFEFF/, "")
+      .replace(/[\u200B-\u200D\uFEFF]/g, "")
+      .trim();
+    return t.replace(/[\u0100-\uFFFF]/g, "");
+  }
+
+  /**
+   * 根据 Prefs 中的 apiProvider 返回对话 API 的 URL 和模型名
+   */
+  private getChatApiConfig(): { url: string; model: string } {
+    const zotero = this.data.ztoolkit.getGlobal("Zotero");
+    const provider = String((zotero as any).Prefs.get("extensions.zotero.literature-tracker.apiProvider", true) || "deepseek").toLowerCase();
+    if (provider === "openai") {
+      return { url: "https://api.openai.com/v1/chat/completions", model: "gpt-4o-mini" };
+    }
+    return { url: "https://api.deepseek.com/v1/chat/completions", model: "deepseek-chat" };
+  }
+
+  /**
+   * 使用 XMLHttpRequest 调用对话 API（支持 OpenAI / DeepSeek，在 Zotero 中比 fetch 更稳定）
+   */
+  private openApiPost(apiKey: string, body: object, apiUrl?: string): Promise<{ status: number; responseText: string }> {
+    const url = apiUrl || this.getChatApiConfig().url;
+    const bodyWithModel = { ...body, model: (body as any).model || this.getChatApiConfig().model };
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", url, true);
+      xhr.setRequestHeader("Content-Type", "application/json");
+      xhr.setRequestHeader("Authorization", "Bearer " + apiKey);
+      xhr.responseType = "text";
+      xhr.timeout = 30000;
+      xhr.onload = () => resolve({ status: xhr.status, responseText: xhr.responseText || "" });
+      xhr.onerror = () => reject(new Error("NetworkError when attempting to fetch resource"));
+      xhr.ontimeout = () => reject(new Error("请求超时，请检查网络或代理。"));
+      try {
+        xhr.send(JSON.stringify(bodyWithModel));
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
+
+  /**
+   * 验证大模型 API Key 是否有效（供设置页调用）
+   * @param apiKey 可选，不传则从 Prefs 读取
+   * @returns { ok: true } 或 { ok: false, message: string }
+   */
+  public async verifyApiKey(apiKey?: string): Promise<{ ok: boolean; message: string }> {
+    try {
+      const zotero = this.data.ztoolkit.getGlobal("Zotero");
+      const keyRaw = (apiKey !== undefined && apiKey !== null ? apiKey : (zotero as any).Prefs.get("extensions.zotero.literature-tracker.apiKey", true)) as string | null;
+      if (!keyRaw || !String(keyRaw).trim()) {
+        return { ok: false, message: "未配置 API Key，请先在设置中填写并保存。" };
+      }
+      const key = this.sanitizeApiKey(String(keyRaw));
+      if (!key) {
+        return { ok: false, message: "API Key 只能包含英文、数字和常用符号，请检查是否误粘贴了其他字符。" };
+      }
+      const { model } = this.getChatApiConfig();
+      const { status, responseText } = await this.openApiPost(key, {
+        model,
+        messages: [{ role: "user", content: "hi" }],
+        max_tokens: 5,
+      });
+      if (status !== 200) {
+        let msg = `API 返回 ${status}`;
+        try {
+          const errJson = JSON.parse(responseText);
+          if (errJson.error && errJson.error.message) msg = errJson.error.message;
+          else if (responseText) msg = responseText.slice(0, 200);
+        } catch (_) {
+          if (responseText) msg = responseText.slice(0, 200);
+        }
+        const isAuthError = status === 401 || /invalid|authentication|api key|unauthorized/i.test(msg);
+        if (isAuthError) {
+          msg += "\n\n请到 DeepSeek 开放平台 (platform.deepseek.com) 登录后重新复制 API Key，确保完整粘贴、无多余空格或换行。";
+        }
+        ztoolkit.log(`verifyApiKey failed: ${status} ${msg}`);
+        return { ok: false, message: msg };
+      }
+      return { ok: true, message: "API Key 有效。" };
+    } catch (e: any) {
+      const msg = (e && e.message) ? e.message : String(e);
+      ztoolkit.log(`verifyApiKey error: ${msg}`);
+      return { ok: false, message: "网络或请求异常: " + msg + "。若需代理访问 OpenAI，请在系统或 Zotero 中配置代理。" };
+    }
+  }
+
+  /**
+   * 使用大模型生成文献内容概括（供推荐文献窗口调用）
+   * @param paper 至少包含 title，可选 abstract/summary
+   * @returns 概括文本，未配置 API Key 或失败时返回 null
+   */
+  public async getPaperSummary(paper: { title?: string; abstract?: string; summary?: string }): Promise<string | null> {
+    try {
+      const zotero = this.data.ztoolkit.getGlobal("Zotero");
+      const apiKeyRaw = (zotero as any).Prefs.get("extensions.zotero.literature-tracker.apiKey", true) as string | null;
+      if (!apiKeyRaw || !apiKeyRaw.trim()) {
+        ztoolkit.log("getPaperSummary: 未读取到 API Key（请确认已在设置中保存）");
+        return null;
+      }
+      const apiKey = this.sanitizeApiKey(apiKeyRaw);
+      if (!apiKey) {
+        ztoolkit.log("getPaperSummary: API Key 含非 ASCII 字符，已忽略");
+        return null;
+      }
+      const title = paper.title || "";
+      const abstract = paper.abstract || paper.summary || "";
+      const text = [title, abstract].filter(Boolean).join("\n\n");
+      if (!text.trim()) return null;
+
+      const { model } = this.getChatApiConfig();
+      const { status, responseText } = await this.openApiPost(apiKey, {
+        model,
+        messages: [
+          {
+            role: "system",
+            content: "你是一个学术助手。请用简洁的中文概括下面这篇文献的核心内容，2-3句话即可，不要列点。",
+          },
+          { role: "user", content: text.slice(0, 6000) },
+        ],
+        max_tokens: 300,
+      });
+
+      if (status !== 200) {
+        ztoolkit.log(`getPaperSummary API error: ${status} ${responseText.slice(0, 300)}`);
+        return null;
+      }
+
+      const data = JSON.parse(responseText) as { choices?: Array<{ message?: { content?: string } }> };
+      const content = data.choices?.[0]?.message?.content?.trim();
+      return content || null;
+    } catch (e) {
+      ztoolkit.log(`getPaperSummary error: ${e}`);
+      return null;
+    }
+  }
+
+  /**
    * 显示推荐文献窗口
    */
   public showRecommendedPapersWindow(papers: any[]) {
@@ -620,9 +763,14 @@ class Addon {
         "chrome,centerscreen,width=800,height=600,resizable=yes"
       );
 
-      // 传递文献数据到窗口
+      // 传递文献数据与摘要函数到窗口；用闭包固定 addon 引用，避免子窗口调用时 this 丢失导致读不到 Prefs
       if (win) {
+        const addonRef = this;
         win.recommendedPapers = papers;
+        win.getPaperSummary = (paper: { title?: string; abstract?: string; summary?: string }) => addonRef.getPaperSummary(paper);
+        if ((win as any).document?.readyState === "complete" && typeof (win as any).displayRecommendedPapers === "function") {
+          (win as any).displayRecommendedPapers();
+        }
         ztoolkit.log("Recommended papers window opened successfully");
       } else {
         ztoolkit.log("Failed to open recommended papers window");

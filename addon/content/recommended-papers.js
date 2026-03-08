@@ -1,134 +1,100 @@
 // Recommended Papers Window Logic
 
-// 全局函数
+/**
+ * 获取文献在浏览器中打开的 URL（优先摘要页）
+ * arXiv: https://arxiv.org/abs/{id}，否则使用 pdfUrl 或 url
+ */
+function getPaperPageUrl(paper) {
+  if (paper.id && (paper.categories || paper.title || /arxiv/i.test(paper.publicationTitle || ''))) {
+    return 'https://arxiv.org/abs/' + String(paper.id);
+  }
+  if (paper.pdfUrl) return paper.pdfUrl;
+  if (paper.pdf_url) return paper.pdf_url;
+  if (paper.url) return paper.url;
+  return null;
+}
+
+/**
+ * 在系统默认浏览器中打开 URL
+ */
+function openPaperInBrowser(url) {
+  if (!url) return;
+  try {
+    if (window.opener && window.opener.Zotero && typeof window.opener.Zotero.launchURL === 'function') {
+      window.opener.Zotero.launchURL(url);
+    } else {
+      window.open(url, '_blank');
+    }
+  } catch (e) {
+    window.open(url, '_blank');
+  }
+}
+
+/**
+ * 渲染推荐文献列表
+ */
 function displayRecommendedPapers() {
   const papersContainer = document.getElementById('papers-container');
   const papers = window.recommendedPapers || [];
 
   if (papers.length === 0) {
-    papersContainer.innerHTML = '<xul:label value="No recommended papers found." style="padding: 20px; text-align: center; color: #666;"></xul:label>';
+    papersContainer.innerHTML = '<p class="papers-empty">暂无推荐文献。</p>';
+    papersContainer.className = 'papers-list';
     return;
   }
 
-  // 清空容器
   papersContainer.innerHTML = '';
+  papersContainer.className = 'papers-list';
 
-  // 添加每篇文献
-  papers.forEach((paper, index) => {
-    const paperItem = document.createElementNS('http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul', 'vbox');
+  papers.forEach(function (paper, index) {
+    const paperItem = document.createElement('div');
     paperItem.className = 'paper-item';
 
-    // 标题
-    const titleLabel = document.createElementNS('http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul', 'label');
-    titleLabel.className = 'paper-title';
-    titleLabel.setAttribute('value', `${index + 1}. ${paper.title}`);
-    paperItem.appendChild(titleLabel);
+    const titleEl = document.createElement('div');
+    titleEl.className = 'paper-title';
+    titleEl.textContent = (index + 1) + '. ' + (paper.title || 'Untitled');
+    paperItem.appendChild(titleEl);
 
-    // 作者
-    const authorsLabel = document.createElementNS('http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul', 'label');
-    authorsLabel.className = 'paper-authors';
-    authorsLabel.setAttribute('value', `Authors: ${paper.authors ? paper.authors.join(', ') : 'Unknown'}`);
-    paperItem.appendChild(authorsLabel);
+    const authors = paper.authors && paper.authors.length ? paper.authors.join(', ') : 'Unknown';
+    const authorsEl = document.createElement('div');
+    authorsEl.className = 'paper-meta paper-authors';
+    authorsEl.textContent = 'Authors: ' + authors;
+    paperItem.appendChild(authorsEl);
 
-    // 期刊/来源
-    const journalLabel = document.createElementNS('http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul', 'label');
-    journalLabel.className = 'paper-journal';
-    journalLabel.setAttribute('value', `Source: ${paper.journal || paper.published ? new Date(paper.published).toLocaleDateString() : 'arXiv'}`);
-    paperItem.appendChild(journalLabel);
+    const sourceText = paper.published
+      ? 'Source: arXiv · ' + new Date(paper.published).toLocaleDateString()
+      : 'Source: arXiv';
+    const sourceEl = document.createElement('div');
+    sourceEl.className = 'paper-source';
+    sourceEl.textContent = sourceText;
+    paperItem.appendChild(sourceEl);
 
-    // 链接
-    const url = paper.pdf_url || paper.url;
-    if (url) {
-      const linkLabel = document.createElementNS('http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul', 'label');
-      linkLabel.className = 'paper-link';
-      linkLabel.setAttribute('value', `Link: ${url}`);
-      linkLabel.setAttribute('style', 'color: blue; text-decoration: underline; cursor: pointer;');
-      linkLabel.setAttribute('onclick', `window.open('${url}', '_blank')`);
-      paperItem.appendChild(linkLabel);
-    }
-
-    // 操作按钮
-    const actionsBox = document.createElementNS('http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul', 'hbox');
+    const actionsBox = document.createElement('div');
     actionsBox.className = 'paper-actions';
 
-    // 添加到Zotero按钮
-    const addButton = document.createElementNS('http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul', 'button');
-    addButton.setAttribute('label', 'Add to Zotero');
-    addButton.setAttribute('oncommand', `addToZotero(${JSON.stringify(paper).replace(/'/g, "\\'")})`);
-    actionsBox.appendChild(addButton);
+    const pageUrl = getPaperPageUrl(paper);
+    if (pageUrl) {
+      const openBtn = document.createElement('button');
+      openBtn.type = 'button';
+      openBtn.className = 'btn-open';
+      openBtn.textContent = '在浏览器中打开';
+      openBtn.addEventListener('click', function () {
+        openPaperInBrowser(pageUrl);
+      });
+      actionsBox.appendChild(openBtn);
+    }
 
     paperItem.appendChild(actionsBox);
     papersContainer.appendChild(paperItem);
   });
 }
 
-function addToZotero(paper) {
-  try {
-    // 获取Zotero对象
-    const Zotero = window.opener.Zotero;
-    if (!Zotero) {
-      throw new Error('Zotero object not found');
-    }
-
-    // 调用Zotero的API添加文献
-    const item = new Zotero.Item('journalArticle');
-    item.setField('title', paper.title);
-
-    // 设置作者
-    if (paper.authors && paper.authors.length > 0) {
-      const creators = paper.authors.map(author => {
-        const parts = author.split(' ');
-        const lastName = parts.pop();
-        const firstName = parts.join(' ');
-        return {
-          creatorType: 'author',
-          firstName: firstName,
-          lastName: lastName
-        };
-      });
-      item.setCreators(creators);
-    }
-
-    // 设置摘要（如果存在）
-    if (paper.summary) {
-      item.setField('abstractNote', paper.summary);
-    }
-
-    // 设置URL（如果存在）
-    if (paper.pdf_url || paper.url) {
-      item.setField('url', paper.pdf_url || paper.url);
-    }
-
-    // 设置DOI（如果存在）
-    if (paper.doi) {
-      item.setField('DOI', paper.doi);
-    }
-
-    // 设置日期（如果存在）
-    if (paper.published) {
-      item.setField('date', new Date(paper.published).toISOString().split('T')[0]);
-    }
-
-    // 设置期刊/来源
-    item.setField('publicationTitle', paper.journal || 'arXiv');
-
-    item.saveTx();
-
-    // 显示成功通知
-    alert('Paper added to Zotero successfully!');
-  } catch (error) {
-    console.error('Error adding paper to Zotero:', error);
-    alert('Failed to add paper to Zotero. ' + error.message);
-  }
-}
-
-// 页面加载时执行
+// 页面加载时渲染
 window.addEventListener('load', function () {
-  // 显示推荐文献
   displayRecommendedPapers();
 });
 
-// 将函数暴露为全局函数
+// 暴露供外部调用
 window.displayRecommendedPapers = displayRecommendedPapers;
-window.openPaper = openPaper;
-window.addToZotero = addToZotero;
+window.openPaperInBrowser = openPaperInBrowser;
+window.getPaperPageUrl = getPaperPageUrl;

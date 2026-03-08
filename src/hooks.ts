@@ -55,15 +55,32 @@ async function onMainWindowLoad(win: any): Promise<void> {
 }
 
 /**
+ * 获取 Tools 菜单的弹出层（兼容不同 Zotero 版本的 DOM 结构）
+ */
+function getToolsMenuPopup(doc: Document): Element | null {
+  // 优先使用 Zotero 常见的 Tools 下拉内容 ID
+  const byId = doc.getElementById("menu_ToolsPopup");
+  if (byId) return byId;
+  // 备用：通过 Tools 菜单项获取其 menupopup
+  const toolsMenu = doc.getElementById("menu_Tools");
+  if (toolsMenu) {
+    const menupopup = toolsMenu.querySelector("menupopup") || toolsMenu.firstElementChild;
+    if (menupopup) return menupopup;
+  }
+  // 再备用：任意带 Tools 的 menu 的 menupopup
+  const menu = doc.querySelector('menu[id*="Tools"] menupopup, menu[id*="tools"] menupopup');
+  return menu || null;
+}
+
+/**
  * 添加菜单项
  * @param win 主窗口
  */
 function addMenuItems(win: any) {
   try {
-    // 获取工具菜单
-    const toolsMenu = win.document.getElementById("menu_ToolsPopup");
+    const toolsMenu = getToolsMenuPopup(win.document);
     if (!toolsMenu) {
-      ztoolkit.log("Tools menu not found");
+      ztoolkit.log("Tools menu not found (tried menu_ToolsPopup, menu_Tools)");
       return;
     }
 
@@ -220,7 +237,7 @@ function openSettingsWindow() {
     const win = Zotero.getMainWindow().open(
       "chrome://literature-tracker/content/preferences.xhtml",
       "literature-tracker-preferences",
-      "chrome,centerscreen,width=800,height=600"
+      "chrome,centerscreen,width=520,height=380,resizable=yes"
     );
     if (win) {
       ztoolkit.log("Settings window opened successfully");
